@@ -3,757 +3,268 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BugOff — A bug bounty priority engine that turns open-source triage into a strategy game. Score, rank, and schedule bug fixes with algorithmic precision.">
+  <meta name="description" content="BugOff — A bug bounty priority engine that turns bug triage into a strategy game.">
   <title>BugOff — Bug Bounty Priority Engine</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <style>
-    /* ═════════════════════════════════════════
-       BUGOFF LANDING PAGE — INLINE STYLES
-       ═════════════════════════════════════════ */
-
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    :root {
-      --bg:        #0B0E14;
-      --bg-card:   #12161F;
-      --bg-hover:  #1A1F2B;
-      --border:    #1E2433;
-      --cyan:      #3DFFC0;
-      --coral:     #E8905A;
-      --amber:     #FFD166;
-      --red:       #FF4D6D;
-      --purple:    #8B7EC8;
-      --text:      #E8ECF1;
-      --text-dim:  #6B7280;
-      --font:      'Inter', -apple-system, sans-serif;
-      --mono:      'JetBrains Mono', monospace;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font);
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    /* ── NAV ── */
-    nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 40px;
-      background: rgba(11, 14, 20, 0.85);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .nav-logo {
-      font-family: var(--mono);
-      font-size: 18px;
-      font-weight: 700;
-      text-decoration: none;
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-    }
-
-    .nav-logo .n-bug { color: var(--cyan); }
-    .nav-logo .n-off { color: var(--coral); }
-    .nav-logo .n-tag {
-      font-size: 9px;
-      color: var(--text-dim);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 28px;
-      list-style: none;
-    }
-
-    .nav-links a {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-dim);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--text); }
-
-    .nav-cta {
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 600;
-      padding: 8px 20px;
-      background: var(--cyan);
-      color: var(--bg);
-      border: none;
-      border-radius: 6px;
-      text-decoration: none;
-      transition: opacity 0.15s;
-    }
-
-    .nav-cta:hover { opacity: 0.85; }
-
-    /* ── HERO ── */
-    .hero {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 120px 40px 80px;
-      position: relative;
-    }
-
-    /* Subtle grid background */
-    .hero::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(61, 255, 192, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(61, 255, 192, 0.03) 1px, transparent 1px);
-      background-size: 60px 60px;
-      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 70%);
-      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 70%);
-    }
-
-    /* Glow orb */
-    .hero::after {
-      content: '';
-      position: absolute;
-      top: 15%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 600px;
-      height: 400px;
-      background: radial-gradient(ellipse, rgba(61,255,192,0.08) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      background: rgba(139,126,200,0.12);
-      border: 1px solid rgba(139,126,200,0.25);
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--purple);
-      margin-bottom: 28px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-badge .dot {
-      width: 6px;
-      height: 6px;
-      background: var(--cyan);
-      border-radius: 50%;
-      animation: pulse-dot 2s ease infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    .hero h1 {
-      font-size: clamp(40px, 6vw, 72px);
-      font-weight: 900;
-      line-height: 1.05;
-      letter-spacing: -2px;
-      margin-bottom: 20px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero h1 .h-bug { color: var(--cyan); }
-    .hero h1 .h-off { color: var(--coral); }
-
-    .hero-sub {
-      font-size: clamp(16px, 2vw, 20px);
-      color: var(--text-dim);
-      max-width: 600px;
-      line-height: 1.6;
-      margin-bottom: 40px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-actions {
-      display: flex;
-      gap: 14px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .btn-hero {
-      font-family: var(--mono);
-      font-size: 14px;
-      font-weight: 600;
-      padding: 14px 32px;
-      border-radius: 8px;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: transform 0.15s, opacity 0.15s;
-      border: none;
-      cursor: pointer;
-    }
-
-    .btn-hero:hover { transform: translateY(-1px); }
-    .btn-hero:active { transform: translateY(0); }
-
-    .btn-hero.primary {
-      background: var(--cyan);
-      color: var(--bg);
-    }
-
-    .btn-hero.secondary {
-      background: transparent;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn-hero.secondary:hover {
-      border-color: var(--text-dim);
-    }
-
-    /* ── STATS STRIP ── */
-    .stats-strip {
-      display: flex;
-      justify-content: center;
-      gap: 48px;
-      padding: 48px 40px;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .strip-stat {
-      text-align: center;
-    }
-
-    .strip-stat .s-value {
-      font-family: var(--mono);
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--text);
-    }
-
-    .strip-stat .s-value .accent-c { color: var(--cyan); }
-    .strip-stat .s-value .accent-a { color: var(--amber); }
-    .strip-stat .s-value .accent-r { color: var(--coral); }
-    .strip-stat .s-value .accent-p { color: var(--purple); }
-
-    .strip-stat .s-label {
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-top: 6px;
-    }
-
-    /* ── FEATURES ── */
-    .features {
-      padding: 80px 40px;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    .features h2 {
-      font-size: 28px;
-      font-weight: 800;
-      text-align: center;
-      margin-bottom: 12px;
-    }
-
-    .features .section-sub {
-      font-size: 15px;
-      color: var(--text-dim);
-      text-align: center;
-      max-width: 500px;
-      margin: 0 auto 48px;
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-
-    .feature-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px 24px;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-
-    .feature-card:hover {
-      border-color: var(--border);
-      transform: translateY(-2px);
-    }
-
-    .feature-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      margin-bottom: 16px;
-    }
-
-    .fi-cyan   { background: rgba(61,255,192,0.1); color: var(--cyan); }
-    .fi-coral  { background: rgba(232,144,90,0.1); color: var(--coral); }
-    .fi-amber  { background: rgba(255,209,102,0.1); color: var(--amber); }
-    .fi-red    { background: rgba(255,77,109,0.1); color: var(--red); }
-    .fi-purple { background: rgba(139,126,200,0.1); color: var(--purple); }
-    .fi-white  { background: rgba(232,236,241,0.06); color: var(--text); }
-
-    .feature-card h3 {
-      font-size: 15px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .feature-card p {
-      font-size: 13px;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
-
-    /* ── HOW IT WORKS ── */
-    .how-it-works {
-      padding: 80px 40px;
-      border-top: 1px solid var(--border);
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    .how-it-works h2 {
-      font-size: 28px;
-      font-weight: 800;
-      text-align: center;
-      margin-bottom: 48px;
-    }
-
-    .steps {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      position: relative;
-    }
-
-    /* Vertical line */
-    .steps::before {
-      content: '';
-      position: absolute;
-      left: 19px;
-      top: 24px;
-      bottom: 24px;
-      width: 2px;
-      background: var(--border);
-    }
-
-    .step {
-      display: flex;
-      gap: 24px;
-      padding: 20px 0;
-    }
-
-    .step-num {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--bg-card);
-      border: 2px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--mono);
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--cyan);
-      flex-shrink: 0;
-      position: relative;
-      z-index: 1;
-    }
-
-    .step-content h3 {
-      font-size: 15px;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    .step-content p {
-      font-size: 13px;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
-
-    .step-content code {
-      font-family: var(--mono);
-      font-size: 12px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      padding: 2px 8px;
-      border-radius: 4px;
-      color: var(--amber);
-    }
-
-    /* ── FORMULA ── */
-    .formula-section {
-      padding: 60px 40px;
-      border-top: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .formula-section h2 {
-      font-size: 28px;
-      font-weight: 800;
-      margin-bottom: 24px;
-    }
-
-    .formula-block {
-      display: inline-block;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px 40px;
-      font-family: var(--mono);
-      font-size: 14px;
-      line-height: 2;
-      text-align: left;
-      color: var(--text-dim);
-    }
-
-    .formula-block .fw { color: var(--text); font-weight: 600; }
-    .formula-block .fc { color: var(--cyan); }
-    .formula-block .fa { color: var(--amber); }
-    .formula-block .fr { color: var(--coral); }
-    .formula-block .fp { color: var(--purple); }
-
-    /* ── TECH STACK ── */
-    .tech-section {
-      padding: 60px 40px;
-      border-top: 1px solid var(--border);
-      max-width: 700px;
-      margin: 0 auto;
-      text-align: center;
-    }
-
-    .tech-section h2 {
-      font-size: 28px;
-      font-weight: 800;
-      margin-bottom: 28px;
-    }
-
-    .tech-pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-    }
-
-    .tech-pill {
-      padding: 8px 18px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-      transition: border-color 0.2s;
-    }
-
-    .tech-pill:hover { border-color: var(--text-dim); }
-
-    .tp-go    { color: #00ADD8; border-color: rgba(0,173,216,0.3); }
-    .tp-heap  { color: var(--cyan); border-color: rgba(61,255,192,0.2); }
-    .tp-web   { color: var(--amber); border-color: rgba(255,209,102,0.2); }
-    .tp-api   { color: var(--coral); border-color: rgba(232,144,90,0.2); }
-    .tp-ai    { color: var(--purple); border-color: rgba(139,126,200,0.2); }
-
-    /* ── CTA FOOTER ── */
-    .cta-section {
-      padding: 80px 40px;
-      text-align: center;
-      border-top: 1px solid var(--border);
-      position: relative;
-    }
-
-    .cta-section::before {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 500px;
-      height: 300px;
-      background: radial-gradient(ellipse, rgba(232,144,90,0.06) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .cta-section h2 {
-      font-size: 32px;
-      font-weight: 800;
-      margin-bottom: 12px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .cta-section p {
-      font-size: 15px;
-      color: var(--text-dim);
-      margin-bottom: 32px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .cta-section .btn-hero {
-      position: relative;
-      z-index: 1;
-    }
-
-    /* ── FOOTER ── */
-    footer {
-      padding: 32px 40px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 12px;
-      color: var(--text-dim);
-    }
-
-    footer a {
-      color: var(--text-dim);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-
-    footer a:hover { color: var(--text); }
-
-    .footer-links {
-      display: flex;
-      gap: 20px;
-    }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 768px) {
-      nav { padding: 12px 20px; }
-      .nav-links { display: none; }
-      .hero { padding: 100px 20px 60px; }
-      .hero h1 { letter-spacing: -1px; }
-      .stats-strip { flex-wrap: wrap; gap: 24px; padding: 32px 20px; }
-      .features { padding: 60px 20px; }
-      .feature-grid { grid-template-columns: 1fr; }
-      .how-it-works { padding: 60px 20px; }
-      .formula-block { font-size: 12px; padding: 20px 24px; }
-      .hero-actions { flex-direction: column; align-items: center; }
-      footer { flex-direction: column; gap: 12px; text-align: center; }
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="landing.css">
 </head>
 <body>
 
-  <!-- ── NAV ── -->
-  <nav>
+  <!-- FLOATING PARTICLES -->
+  <canvas id="particles"></canvas>
+
+  <!-- FLOATING PIXEL BUGS -->
+  <div class="floating-bugs">
+    <div class="fbug fbug-1">
+      <svg width="32" height="32" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="0" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="7" y="0" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="3" y="1" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="6" y="1" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="4" y="1" width="2" height="1" fill="#3DFFC0"/>
+        <rect x="3" y="2" width="4" height="1" fill="#3DFFC0"/>
+        <rect x="4" y="2" width="1" height="1" fill="#0D0B1E"/>
+        <rect x="6" y="2" width="1" height="1" fill="#0D0B1E"/>
+        <rect x="3" y="3" width="4" height="1" fill="#3DFFC0"/>
+        <rect x="2" y="4" width="6" height="2" fill="#3DFFC0"/>
+        <rect x="3" y="6" width="4" height="2" fill="#3DFFC0"/>
+        <rect x="4" y="8" width="2" height="1" fill="#3DFFC0"/>
+        <rect x="1" y="4" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="0" y="5" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="8" y="4" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="9" y="5" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="1" y="6" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="0" y="7" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="8" y="6" width="1" height="1" fill="#3DFFC0"/>
+        <rect x="9" y="7" width="1" height="1" fill="#3DFFC0"/>
+      </svg>
+    </div>
+    <div class="fbug fbug-2">
+      <svg width="24" height="24" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="0" width="1" height="1" fill="#E8905A"/>
+        <rect x="7" y="0" width="1" height="1" fill="#E8905A"/>
+        <rect x="3" y="1" width="1" height="1" fill="#E8905A"/>
+        <rect x="6" y="1" width="1" height="1" fill="#E8905A"/>
+        <rect x="4" y="1" width="2" height="1" fill="#E8905A"/>
+        <rect x="3" y="2" width="4" height="1" fill="#E8905A"/>
+        <rect x="4" y="2" width="1" height="1" fill="#0D0B1E"/>
+        <rect x="6" y="2" width="1" height="1" fill="#0D0B1E"/>
+        <rect x="2" y="3" width="6" height="3" fill="#E8905A"/>
+        <rect x="3" y="6" width="4" height="2" fill="#E8905A"/>
+        <rect x="1" y="4" width="1" height="1" fill="#E8905A"/>
+        <rect x="8" y="4" width="1" height="1" fill="#E8905A"/>
+      </svg>
+    </div>
+    <div class="fbug fbug-3">
+      <svg width="20" height="20" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="1" width="2" height="1" fill="#8B7EC8"/>
+        <rect x="3" y="2" width="4" height="1" fill="#8B7EC8"/>
+        <rect x="2" y="3" width="6" height="3" fill="#8B7EC8"/>
+        <rect x="3" y="6" width="4" height="2" fill="#8B7EC8"/>
+        <rect x="1" y="4" width="1" height="1" fill="#8B7EC8"/>
+        <rect x="8" y="4" width="1" height="1" fill="#8B7EC8"/>
+        <rect x="0" y="5" width="1" height="1" fill="#8B7EC8"/>
+        <rect x="9" y="5" width="1" height="1" fill="#8B7EC8"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- SCATTERED LETTERS -->
+  <div class="scattered-letters">
+    <span class="sl sl-1">O</span>
+    <span class="sl sl-2">M</span>
+    <span class="sl sl-3">X</span>
+    <span class="sl sl-4">I</span>
+    <span class="sl sl-5">M</span>
+    <span class="sl sl-6">O</span>
+    <span class="sl sl-7">X</span>
+  </div>
+
+  <!-- NAV -->
+  <nav id="nav">
     <a href="#" class="nav-logo">
-      <span><span class="n-bug">BUG</span><span class="n-off">OFF</span></span>
-      <span class="n-tag">Priority Engine</span>
+      <span class="nl-bug">BUG</span><span class="nl-off">OFF</span>
     </a>
-    <ul class="nav-links">
-      <li><a href="#features">Features</a></li>
-      <li><a href="#how">How It Works</a></li>
-      <li><a href="#formula">Scoring</a></li>
-      <li><a href="#tech">Tech Stack</a></li>
-    </ul>
+    <div class="nav-links">
+      <a href="#hero">HOME</a>
+      <a href="#data">DATA MODEL</a>
+      <a href="#features">FEATURES</a>
+      <a href="#how">HOW IT WORKS</a>
+    </div>
     <a href="dashboard.html" class="nav-cta">Launch Dashboard →</a>
   </nav>
 
-  <!-- ── HERO ── -->
-  <section class="hero">
-    <div class="hero-badge">
-      <span class="dot"></span>
-      Hackathon project · OWASP BLT
-    </div>
-    <h1>
-      Stop guessing.<br>
-      Start <span class="h-bug">fixing</span> what <span class="h-off">matters</span>.
-    </h1>
-    <p class="hero-sub">
-      BugOff fetches real bug reports, scores them with a weighted formula, stores them in a max-heap, and tells you exactly which bugs to fix first within your time budget.
-    </p>
-    <div class="hero-actions">
-      <a href="dashboard.html" class="btn-hero primary">▶ Launch Dashboard</a>
-      <a href="#how" class="btn-hero secondary">How it works</a>
-    </div>
+  <!-- HERO -->
+  <section id="hero" class="hero">
+    <p class="hero-top">How Bugs Become</p>
+    <h1 class="hero-title">Powerful Troops</h1>
+    <p class="hero-sub">Turning bug data into battle-ready priorities.</p>
   </section>
 
-  <!-- ── STATS STRIP ── -->
-  <section class="stats-strip">
-    <div class="strip-stat">
-      <div class="s-value"><span class="accent-c">O(log n)</span></div>
-      <div class="s-label">Priority retrieval via max-heap</div>
-    </div>
-    <div class="strip-stat">
-      <div class="s-value"><span class="accent-a">4</span>-factor</div>
-      <div class="s-label">Weighted scoring formula</div>
-    </div>
-    <div class="strip-stat">
-      <div class="s-value"><span class="accent-r">Greedy</span></div>
-      <div class="s-label">Scheduling algorithm</div>
-    </div>
-    <div class="strip-stat">
-      <div class="s-value"><span class="accent-p">Real</span> data</div>
-      <div class="s-label">OWASP BLT + GitHub issues</div>
-    </div>
-  </section>
+  <!-- DATA MODEL + SCORING -->
+  <section id="data" class="data-section">
+    <div class="data-grid">
 
-  <!-- ── FEATURES ── -->
-  <section class="features" id="features">
-    <h2>What BugOff does</h2>
-    <p class="section-sub">Four questions, answered instantly.</p>
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-icon fi-red">⚡</div>
-        <h3>Which bugs matter most?</h3>
-        <p>Weighted scoring across severity, bounty value, reproductions, and age — normalized to a 0-100 scale.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon fi-cyan">🏆</div>
-        <h3>What should I fix first?</h3>
-        <p>Top-K retrieval from a max-heap in O(log n). No more scrolling through noisy issue lists.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon fi-coral">🔄</div>
-        <h3>What changes after a fix?</h3>
-        <p>Fix simulation removes bugs from the heap and rebalances — see how the priority landscape shifts live.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon fi-amber">📅</div>
-        <h3>Best use of my time?</h3>
-        <p>Greedy scheduler maximizes total priority within your developer-hour budget. Like a knapsack solver for bugs.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon fi-purple">🧠</div>
-        <h3>AI explanations</h3>
-        <p>Optional AI layer explains why a bug ranks highly and narrates fix plans. Falls back to templates if unavailable.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon fi-white">📊</div>
-        <h3>Greedy vs optimal</h3>
-        <p>Brute-force comparison validates the greedy approach on small datasets — see exactly how close it gets.</p>
-      </div>
-    </div>
-  </section>
+      <!-- Left: Go struct -->
+      <div class="panel">
+        <div class="panel-label">BUG DATA STRUCTURE</div>
+        <pre class="code-block"><span class="kw">type</span> <span class="tp">Bug</span> <span class="kw">struct</span> {
 
-  <!-- ── HOW IT WORKS ── -->
-  <section class="how-it-works" id="how">
-    <h2>How it works</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <h3>Fetch real bugs</h3>
-          <p>Pulls live issues from <strong>OWASP BLT</strong> via API. Falls back to GitHub issues if BLT is unreachable. Real data, not mocks.</p>
-        </div>
+  ID                <span class="tp">string</span>    <span class="cm">// Unique identifier</span>
+  Title             <span class="tp">string</span>    <span class="cm">// Bug title</span>
+  Severity          <span class="tp">int</span>       <span class="cm">// Severity (1-10)</span>
+  Age               <span class="tp">int</span>       <span class="cm">// Age in days</span>
+  BountyValue       <span class="tp">float64</span>   <span class="cm">// Reward amount (USD)</span>
+  Reproductions     <span class="tp">int</span>       <span class="cm">// How easy to reproduce</span>
+  EstimatedFixHours <span class="tp">float64</span>   <span class="cm">// Estimated hours to fix</span>
+  Source            <span class="tp">string</span>    <span class="cm">// Where it was found</span>
+  URL               <span class="tp">string</span>    <span class="cm">// Link to bug report</span>
+  Priority          <span class="tp">float64</span>   <span class="cm">// Calculated score (0-100)</span>
+
+}</pre>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <h3>Score each bug</h3>
-          <p>Each bug is scored with a weighted formula: <code>Severity×0.4 + Bounty×0.3 + Repro×0.2 + Age×0.1</code>. All inputs normalized to 0-100.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <h3>Build a max-heap</h3>
-          <p>Scored bugs are inserted into a max-heap using Go's <code>container/heap</code>. Top-priority bug is always O(1) to access.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <h3>Schedule fixes</h3>
-          <p>Given a time budget (e.g. 8 hours), the greedy scheduler picks bugs by <code>priority / fix_hours</code> — maximizing impact per hour.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">5</div>
-        <div class="step-content">
-          <h3>Deploy and iterate</h3>
-          <p>Fix a bug → heap rebalances → new priorities emerge. Keep deploying until your budget runs out or the city is safe.</p>
+
+      <!-- Right: Scoring formula -->
+      <div class="panel">
+        <div class="panel-label">SCORING FORMULA (NORMALIZED 0-100)</div>
+        <div class="formula-content">
+          <h2 class="formula-heading">Priority =</h2>
+          <div class="formula-items">
+            <div class="formula-row">
+              <div class="f-badge badge-red"><span class="f-icon">🛡️</span> Severity</div>
+              <span class="f-x">×</span>
+              <span class="f-weight">0.4</span>
+            </div>
+            <span class="f-plus">+</span>
+            <div class="formula-row">
+              <div class="f-badge badge-green"><span class="f-icon">$</span> BountyValue</div>
+              <span class="f-x">×</span>
+              <span class="f-weight">0.3</span>
+            </div>
+            <span class="f-plus">+</span>
+            <div class="formula-row">
+              <div class="f-badge badge-coral"><span class="f-icon">🔁</span> Reproductions</div>
+              <span class="f-x">×</span>
+              <span class="f-weight">0.2</span>
+            </div>
+            <span class="f-plus">+</span>
+            <div class="formula-row">
+              <div class="f-badge badge-purple"><span class="f-icon">📅</span> Age</div>
+              <span class="f-x">×</span>
+              <span class="f-weight">0.1</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── FORMULA ── -->
-  <section class="formula-section" id="formula">
-    <h2>Scoring formula</h2>
-    <div class="formula-block">
-      <span class="fw">Priority</span> = <br>
-      &nbsp;&nbsp;(<span class="fc">Severity</span> × <span class="fw">0.4</span>) +<br>
-      &nbsp;&nbsp;(<span class="fa">BountyValue</span> × <span class="fw">0.3</span>) +<br>
-      &nbsp;&nbsp;(<span class="fr">Reproductions</span> × <span class="fw">0.2</span>) +<br>
-      &nbsp;&nbsp;(<span class="fp">Age</span> × <span class="fw">0.1</span>)
+  <!-- FEATURES -->
+  <section id="features" class="section-wrap">
+    <h2 class="sec-title">Core Features</h2>
+    <p class="sec-sub">Four questions, answered instantly.</p>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="fi fi-red">⚡</div><h3>Priority Scoring</h3><p>Weighted formula across severity, bounty, reproductions, and age — normalized to 0-100.</p></div>
+      <div class="feat-card"><div class="fi fi-cyan">🏆</div><h3>Max-Heap Queue</h3><p>Top-K retrieval in O(log n) via Go's container/heap. Instant access to what matters most.</p></div>
+      <div class="feat-card"><div class="fi fi-coral">🔄</div><h3>Fix Simulation</h3><p>Deploy a fix → heap rebalances → priorities shift. See the impact of every decision live.</p></div>
+      <div class="feat-card"><div class="fi fi-amber">📅</div><h3>Greedy Scheduler</h3><p>Maximize total priority within developer-hour budgets. Like a knapsack solver for bugs.</p></div>
+      <div class="feat-card"><div class="fi fi-purple">🧠</div><h3>AI Explanations</h3><p>Optional layer explains why a bug ranks highly. Falls back to deterministic templates.</p></div>
+      <div class="feat-card"><div class="fi fi-white">📊</div><h3>Greedy vs Optimal</h3><p>Brute-force comparison validates greedy — see exactly how close it gets to optimal.</p></div>
     </div>
   </section>
 
-  <!-- ── TECH STACK ── -->
-  <section class="tech-section" id="tech">
-    <h2>Built with</h2>
+  <!-- HOW IT WORKS -->
+  <section id="how" class="section-wrap">
+    <h2 class="sec-title">How It Works</h2>
+    <div class="pipeline">
+      <div class="pipe-step"><div class="pipe-num">1</div><h3>Fetch</h3><p>Pull live issues from OWASP BLT. GitHub fallback.</p></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-num">2</div><h3>Score</h3><p>4-factor weighted formula. Inputs normalized 0-100.</p></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-num">3</div><h3>Heap</h3><p>Max-heap for O(1) top, O(log n) insert/remove.</p></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-num">4</div><h3>Schedule</h3><p>Greedy picks by priority/hours within budget.</p></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="pipe-num">5</div><h3>Deploy</h3><p>Fix bugs, heap rebalances, new priorities emerge.</p></div>
+    </div>
+  </section>
+
+  <!-- TECH STACK -->
+  <section class="section-wrap tech-section">
+    <h2 class="sec-title">Built With</h2>
     <div class="tech-pills">
-      <span class="tech-pill tp-go">Go</span>
-      <span class="tech-pill tp-heap">container/heap</span>
-      <span class="tech-pill tp-web">HTML / CSS / JS</span>
-      <span class="tech-pill tp-api">REST API</span>
-      <span class="tech-pill tp-go">net/http</span>
-      <span class="tech-pill tp-ai">AI explanations</span>
-      <span class="tech-pill">OWASP BLT</span>
-      <span class="tech-pill">GitHub API</span>
+      <span class="pill tp-go">Go</span>
+      <span class="pill tp-heap">container/heap</span>
+      <span class="pill tp-web">HTML / CSS / JS</span>
+      <span class="pill tp-api">REST API</span>
+      <span class="pill tp-go">net/http</span>
+      <span class="pill tp-ai">AI Layer</span>
+      <span class="pill">OWASP BLT</span>
+      <span class="pill">GitHub API</span>
     </div>
   </section>
 
-  <!-- ── CTA ── -->
+  <!-- CTA -->
   <section class="cta-section">
     <h2>Ready to triage?</h2>
     <p>Open the dashboard and start deploying fixes.</p>
-    <a href="dashboard.html" class="btn-hero primary">▶ Launch Dashboard</a>
+    <a href="dashboard.html" class="btn-launch">▶ Launch Dashboard</a>
   </section>
 
-  <!-- ── FOOTER ── -->
+  <!-- FOOTER -->
   <footer>
-    <span>BugOff · Hackathon 2026 · Built by <a href="#">@Rudra-rps</a></span>
+    <span>BugOff · Hackathon 2026 · Built by <a href="https://github.com/Rudra-rps" target="_blank">@Rudra-rps</a></span>
     <div class="footer-links">
       <a href="https://github.com/Rudra-rps" target="_blank">GitHub</a>
       <a href="https://owasp.org/www-project-bug-logging-tool/" target="_blank">OWASP BLT</a>
     </div>
   </footer>
 
+  <script>
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let dots = [];
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = document.body.scrollHeight;
+    }
+    function init() {
+      dots = [];
+      const n = Math.floor((canvas.width * canvas.height) / 9000);
+      for (let i = 0; i < n; i++) {
+        dots.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 1.2 + 0.3,
+          a: Math.random() * 0.35 + 0.05,
+          s: Math.random() * 0.2 + 0.03,
+          d: Math.random() * Math.PI * 2
+        });
+      }
+    }
+    const colors = ['#3DFFC0','#E8905A','#8B7EC8','#FFD166'];
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const d of dots) {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+        ctx.fillStyle = colors[Math.floor(d.x + d.y) % 4];
+        ctx.globalAlpha = d.a;
+        ctx.fill();
+        d.x += Math.cos(d.d) * d.s;
+        d.y += Math.sin(d.d) * d.s;
+        if (d.x < -5) d.x = canvas.width + 5;
+        if (d.x > canvas.width + 5) d.x = -5;
+        if (d.y < -5) d.y = canvas.height + 5;
+        if (d.y > canvas.height + 5) d.y = -5;
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize', () => { resize(); init(); });
+    resize(); init(); draw();
+  </script>
 </body>
 </html>

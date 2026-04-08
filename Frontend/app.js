@@ -1,408 +1,409 @@
-/* ═══════════════════════════════════════════════════
-   BUGOFF — APP ENGINE (CLEAN)
-   Connects to Go API, falls back to mock data.
-   ═══════════════════════════════════════════════════ */
+const API = "";
 
-// ── API BASE ──
-const API = ''; // Same origin — Go server serves both
-
-// ── SEVERITY LABELS ──
-const SEV_LABELS = ['', 'LOW', 'LOW', 'MEDIUM', 'MEDIUM', 'HIGH', 'HIGH', 'HIGH', 'CRITICAL', 'CRITICAL', 'CRITICAL'];
-function sevLabel(sev) {
-  if (sev >= 9) return 'critical';
-  if (sev >= 6) return 'high';
-  if (sev >= 4) return 'medium';
-  return 'low';
-}
-
-// ── MOCK DATA (used when Go server isn't running) ──
-const MOCK_BUGS = [
-  { ID: 1,  Title: 'SQL Injection in Auth Endpoint',       Severity: 10, Age: 45, BountyValue: 5000, Reproductions: 12, EstimatedFixHours: 8,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 2,  Title: 'XSS via User Profile Field',           Severity: 9,  Age: 30, BountyValue: 4200, Reproductions: 8,  EstimatedFixHours: 6,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 3,  Title: 'IDOR in Admin Panel API',              Severity: 8,  Age: 22, BountyValue: 3500, Reproductions: 6,  EstimatedFixHours: 5,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 4,  Title: 'CSRF on Password Reset Flow',          Severity: 7,  Age: 18, BountyValue: 2800, Reproductions: 5,  EstimatedFixHours: 4,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 5,  Title: 'Open Redirect on Login Callback',      Severity: 7,  Age: 60, BountyValue: 2200, Reproductions: 9,  EstimatedFixHours: 3,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 6,  Title: 'Rate Limiting Bypass on OTP',          Severity: 6,  Age: 14, BountyValue: 1800, Reproductions: 4,  EstimatedFixHours: 4,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 7,  Title: 'Sensitive Data in Error Logs',         Severity: 5,  Age: 90, BountyValue: 1500, Reproductions: 7,  EstimatedFixHours: 3,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 8,  Title: 'CORS Misconfiguration',                Severity: 5,  Age: 10, BountyValue: 1200, Reproductions: 3,  EstimatedFixHours: 2,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 9,  Title: 'Missing CSP Header',                   Severity: 3,  Age: 120, BountyValue: 800, Reproductions: 11, EstimatedFixHours: 2,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 10, Title: 'Clickjacking on Settings Page',        Severity: 3,  Age: 5,  BountyValue: 500,  Reproductions: 2,  EstimatedFixHours: 1,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 11, Title: 'Subdomain Takeover Risk',              Severity: 9,  Age: 35, BountyValue: 4800, Reproductions: 3,  EstimatedFixHours: 7,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 12, Title: 'SSRF via Image Proxy',                 Severity: 8,  Age: 28, BountyValue: 3200, Reproductions: 5,  EstimatedFixHours: 6,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 13, Title: 'JWT None Algorithm Accepted',          Severity: 10, Age: 7,  BountyValue: 4500, Reproductions: 6,  EstimatedFixHours: 3,  Source: 'OWASP BLT', URL: '#', Priority: 0 },
-  { ID: 14, Title: 'Path Traversal in File Upload',        Severity: 8,  Age: 42, BountyValue: 3000, Reproductions: 4,  EstimatedFixHours: 5,  Source: 'GitHub', URL: '#', Priority: 0 },
-  { ID: 15, Title: 'Verbose Server Headers Exposed',       Severity: 2,  Age: 200, BountyValue: 400, Reproductions: 15, EstimatedFixHours: 1,  Source: 'GitHub', URL: '#', Priority: 0 },
-];
-
-// ── SCORING (mirrors Go formula) ──
-function scoreBug(bug) {
-  // Normalize to 0-100
-  const maxSev = 10, maxBounty = 5000, maxRepro = 15, maxAge = 200;
-  const normSev   = Math.min(bug.Severity / maxSev, 1) * 100;
-  const normBount = Math.min(bug.BountyValue / maxBounty, 1) * 100;
-  const normRepro = Math.min(bug.Reproductions / maxRepro, 1) * 100;
-  const normAge   = Math.min(bug.Age / maxAge, 1) * 100;
-
-  return (normSev * 0.4) + (normBount * 0.3) + (normRepro * 0.2) + (normAge * 0.1);
-}
-
-function scoreBugs(bugs) {
-  return bugs.map(b => ({ ...b, Priority: scoreBug(b) }))
-             .sort((a, b) => b.Priority - a.Priority);
-}
-
-// ── STATE ──
 let allBugs = [];
-let selectedBugId = null;
-let usingMock = false;
+let selectedBugID = null;
+let initialBugCount = 0;
+let fixedCount = 0;
 
-// ── API CALLS ──
-async function fetchBugs() {
-  try {
-    const res = await fetch(`${API}/api/bugs`);
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    if (data && data.length > 0) {
-      allBugs = data.sort((a, b) => (b.Priority || 0) - (a.Priority || 0));
-      usingMock = false;
-      return;
-    }
-  } catch (e) {
-    console.log('Go server not available, using mock data');
+function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeBug(raw) {
+  const id = toNumber(raw.id ?? raw.ID, 0);
+  const title = String(raw.title ?? raw.Title ?? "Untitled bug");
+  const severity = Math.max(1, Math.min(5, Math.round(toNumber(raw.severity ?? raw.Severity, 3))));
+  const age = Math.max(0, Math.round(toNumber(raw.age ?? raw.Age, 0)));
+  const bountyValue = Math.max(0, Math.round(toNumber(raw.bountyValue ?? raw.BountyValue, 0)));
+  const reproductions = Math.max(1, Math.round(toNumber(raw.reproductions ?? raw.Reproductions, 1)));
+  const estimatedFixHours = Math.max(1, Math.round(toNumber(raw.estimatedFixHours ?? raw.EstimatedFixHours, 1)));
+  const source = String(raw.source ?? raw.Source ?? "github");
+  const url = String(raw.url ?? raw.URL ?? "#");
+  const priority = toNumber(raw.priority ?? raw.Priority, 0);
+
+  return {
+    id,
+    title,
+    severity,
+    age,
+    bountyValue,
+    reproductions,
+    estimatedFixHours,
+    source,
+    url,
+    priority,
+  };
+}
+
+function normalizeBugs(data) {
+  if (!Array.isArray(data)) {
+    return [];
   }
+  return data
+    .map(normalizeBug)
+    .filter((bug) => bug.id > 0)
+    .sort((a, b) => b.priority - a.priority);
+}
 
-  // Fallback to mock
-  allBugs = scoreBugs(MOCK_BUGS);
-  usingMock = true;
+function severityLabel(severity) {
+  if (severity >= 5) return "critical";
+  if (severity >= 4) return "high";
+  if (severity >= 3) return "medium";
+  return "low";
+}
+
+async function fetchBugs(refresh = false) {
+  const suffix = refresh ? "?refresh=1" : "";
+  const response = await fetch(`${API}/api/bugs${suffix}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch bugs (${response.status})`);
+  }
+  const data = await response.json();
+  allBugs = normalizeBugs(data);
+  if (initialBugCount === 0) {
+    initialBugCount = allBugs.length;
+  }
 }
 
 async function apiFix(id) {
-  try {
-    const res = await fetch(`${API}/api/fix/${id}`, { method: 'POST' });
-    if (res.ok) return true;
-  } catch (e) {}
-  return false;
+  const response = await fetch(`${API}/api/fix/${id}`, { method: "POST" });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to fix bug ${id}`);
+  }
+  return response.json();
 }
 
 async function apiSchedule(hours) {
-  try {
-    const res = await fetch(`${API}/api/schedule?hours=${hours}`);
-    if (res.ok) return await res.json();
-  } catch (e) {}
-  return null;
+  const response = await fetch(`${API}/api/schedule?hours=${hours}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Failed to fetch schedule");
+  }
+  const data = await response.json();
+  return normalizeBugs(data);
 }
 
-async function apiCompare() {
-  try {
-    const res = await fetch(`${API}/api/compare`);
-    if (res.ok) return await res.json();
-  } catch (e) {}
-  return null;
+async function apiCompare(hours) {
+  const response = await fetch(`${API}/api/compare?hours=${hours}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Failed to compare schedules");
+  }
+  return response.json();
 }
 
-// ── LOCAL SCHEDULING (fallback) ──
-function localSchedule(bugs, budget) {
+function localSchedule(bugs, budgetHours) {
   const sorted = [...bugs].sort((a, b) => {
-    const ratioA = a.Priority / a.EstimatedFixHours;
-    const ratioB = b.Priority / b.EstimatedFixHours;
+    const ratioA = a.priority / a.estimatedFixHours;
+    const ratioB = b.priority / b.estimatedFixHours;
+    if (ratioA === ratioB) return b.priority - a.priority;
     return ratioB - ratioA;
   });
 
-  const picked = [];
-  let remaining = budget;
+  const selected = [];
+  let usedHours = 0;
   let totalPriority = 0;
-
   for (const bug of sorted) {
-    if (bug.EstimatedFixHours <= remaining) {
-      picked.push(bug);
-      remaining -= bug.EstimatedFixHours;
-      totalPriority += bug.Priority;
-    }
+    if (usedHours + bug.estimatedFixHours > budgetHours) continue;
+    selected.push(bug);
+    usedHours += bug.estimatedFixHours;
+    totalPriority += bug.priority;
   }
 
-  return {
-    bugs: picked,
-    hoursUsed: budget - remaining,
-    hoursRemaining: remaining,
-    totalPriority: totalPriority,
-  };
+  return { bugs: selected, usedHours, totalPriority };
 }
 
-// ── LOCAL BRUTE FORCE (for comparison — small datasets only) ──
-function bruteForceSchedule(bugs, budget) {
-  const n = bugs.length;
-  let bestPriority = 0;
-  let bestSet = [];
+function localBruteForce(bugs, budgetHours, cap = 15) {
+  const candidates = [...bugs].sort((a, b) => b.priority - a.priority).slice(0, cap);
+  const n = candidates.length;
+  let bestMask = 0;
+  let bestPriority = -1;
+  let bestHours = 0;
 
-  // Limit to first 15 bugs for performance
-  const subset = bugs.slice(0, Math.min(n, 15));
-  const m = subset.length;
-  const combos = 1 << m;
+  const limit = 1 << n;
+  for (let mask = 0; mask < limit; mask++) {
+    let usedHours = 0;
+    let totalPriority = 0;
+    let valid = true;
 
-  for (let mask = 0; mask < combos; mask++) {
-    let hours = 0;
-    let prio = 0;
-    const set = [];
-
-    for (let i = 0; i < m; i++) {
-      if (mask & (1 << i)) {
-        hours += subset[i].EstimatedFixHours;
-        if (hours > budget) break;
-        prio += subset[i].Priority;
-        set.push(subset[i]);
+    for (let i = 0; i < n; i++) {
+      if ((mask & (1 << i)) === 0) continue;
+      usedHours += candidates[i].estimatedFixHours;
+      if (usedHours > budgetHours) {
+        valid = false;
+        break;
       }
+      totalPriority += candidates[i].priority;
     }
 
-    if (hours <= budget && prio > bestPriority) {
-      bestPriority = prio;
-      bestSet = [...set];
+    if (!valid) continue;
+    if (totalPriority > bestPriority || (Math.abs(totalPriority - bestPriority) < 0.0001 && usedHours < bestHours)) {
+      bestPriority = totalPriority;
+      bestHours = usedHours;
+      bestMask = mask;
     }
   }
 
+  const selected = [];
+  for (let i = 0; i < n; i++) {
+    if ((bestMask & (1 << i)) !== 0) selected.push(candidates[i]);
+  }
   return {
-    bugs: bestSet,
-    totalPriority: bestPriority,
-    hoursUsed: bestSet.reduce((s, b) => s + b.EstimatedFixHours, 0),
+    bugs: selected,
+    usedHours: bestHours,
+    totalPriority: Math.max(bestPriority, 0),
   };
 }
 
-// ── RENDER FUNCTIONS ──
 function renderStats() {
-  document.getElementById('stat-total').textContent = allBugs.length;
-  const crits = allBugs.filter(b => b.Severity >= 9).length;
-  document.getElementById('stat-critical').textContent = crits;
+  const totalEl = document.getElementById("stat-total");
+  const criticalEl = document.getElementById("stat-critical");
+  const integrityEl = document.getElementById("stat-integrity");
 
-  // Integrity estimate: based on how many bugs are fixed vs total
-  const maxBugs = MOCK_BUGS.length;
-  const pct = Math.max(0, Math.round((1 - allBugs.length / maxBugs) * 100));
-  document.getElementById('stat-integrity').textContent = pct + '%';
+  totalEl.textContent = String(allBugs.length);
+  criticalEl.textContent = String(allBugs.filter((bug) => bug.severity >= 5).length);
+
+  if (initialBugCount <= 0) {
+    integrityEl.textContent = "-";
+    return;
+  }
+  const pct = Math.round((fixedCount / initialBugCount) * 100);
+  integrityEl.textContent = `${pct}%`;
 }
 
 function renderBugList() {
-  const container = document.getElementById('bug-list');
-  container.innerHTML = '';
+  const list = document.getElementById("bug-list");
+  const topKRaw = Number(document.getElementById("top-k-select").value || 5);
+  const maxCount = topKRaw >= 15 ? allBugs.length : topKRaw;
+  const bugs = allBugs.slice(0, maxCount);
+  const maxPriority = bugs.length > 0 ? bugs[0].priority : 1;
 
-  const k = parseInt(document.getElementById('top-k-select').value);
-  const bugs = allBugs.slice(0, k);
-  const maxPriority = bugs.length > 0 ? bugs[0].Priority : 1;
+  list.innerHTML = "";
+  for (let i = 0; i < bugs.length; i++) {
+    const bug = bugs[i];
+    const severityClass = severityLabel(bug.severity);
+    const card = document.createElement("div");
+    card.className = `bug-card sev-${severityClass}`;
+    if (bug.id === selectedBugID) card.classList.add("selected");
 
-  bugs.forEach((bug, i) => {
-    const sev = sevLabel(bug.Severity);
-    const card = document.createElement('div');
-    card.className = `bug-card sev-${sev}`;
-    if (bug.ID === selectedBugId) card.classList.add('selected');
-    card.dataset.bugId = bug.ID;
-
-    const bountyStr = bug.BountyValue >= 1000 ? `$${(bug.BountyValue/1000).toFixed(1)}K` : `$${bug.BountyValue}`;
-    const barWidth = Math.round((bug.Priority / maxPriority) * 100);
-
-    let barColor;
-    if (sev === 'critical') barColor = 'var(--red)';
-    else if (sev === 'high') barColor = 'var(--coral)';
-    else if (sev === 'medium') barColor = 'var(--amber)';
-    else barColor = 'var(--cyan)';
+    const bountyText = bug.bountyValue >= 1000
+      ? `$${(bug.bountyValue / 1000).toFixed(1)}K`
+      : `$${bug.bountyValue}`;
+    const scoreBarWidth = Math.round((bug.priority / maxPriority) * 100);
+    const color = severityClass === "critical"
+      ? "var(--red)"
+      : severityClass === "high"
+        ? "var(--coral)"
+        : severityClass === "medium"
+          ? "var(--amber)"
+          : "var(--cyan)";
 
     card.innerHTML = `
       <div class="bug-rank">#${i + 1}</div>
       <div class="bug-info">
-        <div class="bug-title">${bug.Title}</div>
+        <div class="bug-title">${escapeHTML(bug.title)}</div>
         <div class="bug-meta">
-          <span class="bug-tag tag-severity sev-${sev}">${sev.toUpperCase()}</span>
-          <span class="bug-tag tag-bounty">${bountyStr}</span>
-          <span class="bug-tag tag-hours">${bug.EstimatedFixHours}h</span>
-          <span class="bug-tag tag-repro">${bug.Reproductions} repro</span>
+          <span class="bug-tag tag-severity sev-${severityClass}">${severityClass.toUpperCase()}</span>
+          <span class="bug-tag tag-bounty">${bountyText}</span>
+          <span class="bug-tag tag-hours">${bug.estimatedFixHours}h</span>
+          <span class="bug-tag tag-repro">${bug.reproductions} repro</span>
         </div>
-        <div class="bug-source">${bug.Source}${bug.URL && bug.URL !== '#' ? ' · ' + bug.URL : ''}</div>
+        <div class="bug-source">${escapeHTML(bug.source)}</div>
       </div>
       <div class="bug-stats">
-        <div class="bug-score">${bug.Priority.toFixed(1)}</div>
+        <div class="bug-score">${bug.priority.toFixed(1)}</div>
         <div class="bug-score-label">priority</div>
         <div class="score-bar">
-          <div class="score-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+          <div class="score-bar-fill" style="width:${scoreBarWidth}%;background:${color}"></div>
         </div>
       </div>
     `;
 
-    card.addEventListener('click', () => selectBug(bug.ID));
-    container.appendChild(card);
-  });
+    card.addEventListener("click", () => selectBug(bug.id));
+    list.appendChild(card);
+  }
+}
+
+function renderDeployTarget() {
+  const target = document.getElementById("deploy-target");
+  const button = document.getElementById("btn-deploy");
+  const bug = allBugs.find((item) => item.id === selectedBugID);
+
+  if (!bug) {
+    target.innerHTML = "<p class='deploy-empty'>Select a bug to deploy</p>";
+    button.disabled = true;
+    return;
+  }
+
+  const severityClass = severityLabel(bug.severity);
+  const bountyText = bug.bountyValue >= 1000
+    ? `$${(bug.bountyValue / 1000).toFixed(1)}K`
+    : `$${bug.bountyValue}`;
+  const safeURL = bug.url && bug.url !== "#" ? bug.url : "";
+  const urlHTML = safeURL
+    ? `<a href="${safeURL}" target="_blank" rel="noopener noreferrer">View Issue</a>`
+    : "";
+
+  target.innerHTML = `
+    <div class="deploy-bug-info">
+      <div class="deploy-bug-title">${escapeHTML(bug.title)}</div>
+      <div class="deploy-bug-meta">
+        <span class="bug-tag tag-severity sev-${severityClass}">${severityClass.toUpperCase()}</span>
+        <span class="bug-tag tag-bounty">${bountyText}</span>
+        <span class="bug-tag tag-hours">${bug.estimatedFixHours}h to fix</span>
+      </div>
+      <div class="deploy-bug-link">${urlHTML}</div>
+    </div>
+  `;
+  button.disabled = false;
 }
 
 function selectBug(id) {
-  selectedBugId = id;
+  selectedBugID = id;
   renderBugList();
   renderDeployTarget();
 }
 
-function renderDeployTarget() {
-  const container = document.getElementById('deploy-target');
-  const btn = document.getElementById('btn-deploy');
-  const bug = allBugs.find(b => b.ID === selectedBugId);
+async function deployFix() {
+  if (!selectedBugID) return;
+  const bug = allBugs.find((item) => item.id === selectedBugID);
+  if (!bug) return;
 
-  if (!bug) {
-    container.innerHTML = '<p class="deploy-empty">Click a bug from the queue to select it</p>';
-    btn.disabled = true;
+  try {
+    await apiFix(selectedBugID);
+  } catch (error) {
+    showFlash(`Fix failed: ${String(error.message || error)}`, "error");
     return;
   }
 
-  const sev = sevLabel(bug.Severity);
-  const bountyStr = bug.BountyValue >= 1000 ? `$${(bug.BountyValue/1000).toFixed(1)}K` : `$${bug.BountyValue}`;
+  allBugs = allBugs.filter((item) => item.id !== selectedBugID);
+  selectedBugID = null;
+  fixedCount += 1;
 
-  container.innerHTML = `
-    <div class="deploy-bug-info">
-      <div class="deploy-bug-title">${bug.Title}</div>
-      <div class="deploy-bug-meta">
-        <span class="bug-tag tag-severity sev-${sev}">${sev.toUpperCase()}</span>
-        <span class="bug-tag tag-bounty">${bountyStr}</span>
-        <span class="bug-tag tag-hours">${bug.EstimatedFixHours}h to fix</span>
-      </div>
-    </div>
-  `;
-  btn.disabled = false;
-}
-
-// ── DEPLOY FIX ──
-async function deployFix() {
-  if (!selectedBugId) return;
-
-  const bug = allBugs.find(b => b.ID === selectedBugId);
-  if (!bug) return;
-
-  // Try API first
-  if (!usingMock) {
-    await apiFix(selectedBugId);
-  }
-
-  // Remove locally
-  allBugs = allBugs.filter(b => b.ID !== selectedBugId);
-  selectedBugId = null;
-
-  showFlash(`Bug fixed: ${bug.Title}`, 'success');
-
+  showFlash(`Bug fixed: ${bug.title}`, "success");
   renderStats();
   renderBugList();
   renderDeployTarget();
 }
 
-// ── SCHEDULE ──
 async function runSchedule() {
-  const hours = parseInt(document.getElementById('budget-input').value) || 8;
-  const container = document.getElementById('schedule-list');
-  const summary = document.getElementById('schedule-summary');
+  const hours = Math.max(1, Number(document.getElementById("budget-input").value || 8));
+  const list = document.getElementById("schedule-list");
+  const summary = document.getElementById("schedule-summary");
 
-  let result;
-
-  if (!usingMock) {
-    const apiResult = await apiSchedule(hours);
-    if (apiResult) {
-      // Assume API returns an array of bugs
-      result = {
-        bugs: apiResult,
-        hoursUsed: apiResult.reduce((s, b) => s + b.EstimatedFixHours, 0),
-        hoursRemaining: hours - apiResult.reduce((s, b) => s + b.EstimatedFixHours, 0),
-        totalPriority: apiResult.reduce((s, b) => s + (b.Priority || 0), 0),
-      };
-    }
+  let scheduledBugs = [];
+  try {
+    scheduledBugs = await apiSchedule(hours);
+  } catch (error) {
+    showFlash(`Schedule API failed, using local fallback: ${String(error.message || error)}`, "error");
+    scheduledBugs = localSchedule(allBugs, hours).bugs;
   }
 
-  if (!result) {
-    result = localSchedule(allBugs, hours);
-  }
-
-  container.innerHTML = '';
-
-  if (result.bugs.length === 0) {
-    container.innerHTML = '<p class="schedule-empty">No bugs fit in the budget</p>';
-    summary.classList.add('hidden');
+  list.innerHTML = "";
+  if (scheduledBugs.length === 0) {
+    list.innerHTML = "<p class='schedule-empty'>No bugs fit in the selected budget</p>";
+    summary.classList.add("hidden");
     return;
   }
 
-  result.bugs.forEach((bug, i) => {
-    const item = document.createElement('div');
-    item.className = 'schedule-item';
+  let usedHours = 0;
+  let totalPriority = 0;
+  scheduledBugs.forEach((bug, index) => {
+    usedHours += bug.estimatedFixHours;
+    totalPriority += bug.priority;
+    const item = document.createElement("div");
+    item.className = "schedule-item";
     item.innerHTML = `
-      <span class="sched-num">${i + 1}.</span>
-      <span class="sched-title">${bug.Title}</span>
-      <span class="sched-cost">${bug.EstimatedFixHours}h</span>
+      <span class="sched-num">${index + 1}.</span>
+      <span class="sched-title">${escapeHTML(bug.title)}</span>
+      <span class="sched-cost">${bug.estimatedFixHours}h</span>
     `;
-    container.appendChild(item);
+    list.appendChild(item);
   });
 
-  summary.classList.remove('hidden');
+  summary.classList.remove("hidden");
   summary.innerHTML = `
-    <div class="summary-row"><span>Bugs to fix:</span><span>${result.bugs.length}</span></div>
-    <div class="summary-row"><span>Hours used:</span><span>${result.hoursUsed}h / ${hours}h</span></div>
-    <div class="summary-row"><span>Total priority:</span><span>${result.totalPriority.toFixed(1)}</span></div>
+    <div class="summary-row"><span>Bugs to fix:</span><span>${scheduledBugs.length}</span></div>
+    <div class="summary-row"><span>Hours used:</span><span>${usedHours}h / ${hours}h</span></div>
+    <div class="summary-row"><span>Total priority:</span><span>${totalPriority.toFixed(1)}</span></div>
   `;
 }
 
-// ── COMPARISON ──
 async function runComparison() {
-  const container = document.getElementById('compare-result');
-  const hours = parseInt(document.getElementById('budget-input').value) || 8;
+  const resultBox = document.getElementById("compare-result");
+  const hours = Math.max(1, Number(document.getElementById("budget-input").value || 8));
 
-  let greedyResult, optimalResult;
-
-  if (!usingMock) {
-    const apiResult = await apiCompare();
-    if (apiResult && apiResult.greedy && apiResult.optimal) {
-      greedyResult = apiResult.greedy;
-      optimalResult = apiResult.optimal;
-    }
+  let greedyPriority = 0;
+  let optimalPriority = 0;
+  try {
+    const apiResult = await apiCompare(hours);
+    greedyPriority = toNumber(apiResult?.greedy?.totalPriority, 0);
+    optimalPriority = toNumber(apiResult?.optimal?.totalPriority, 0);
+  } catch (error) {
+    showFlash(`Compare API failed, using local fallback: ${String(error.message || error)}`, "error");
+    const greedy = localSchedule(allBugs, hours);
+    const optimal = localBruteForce(allBugs, hours);
+    greedyPriority = greedy.totalPriority;
+    optimalPriority = optimal.totalPriority;
   }
 
-  if (!greedyResult) {
-    const g = localSchedule(allBugs, hours);
-    greedyResult = { totalPriority: g.totalPriority, count: g.bugs.length, hoursUsed: g.hoursUsed };
+  const maxPriority = Math.max(1, greedyPriority, optimalPriority);
+  const greedyPct = (greedyPriority / maxPriority) * 100;
+  const optimalPct = (optimalPriority / maxPriority) * 100;
+  const efficiency = optimalPriority > 0 ? ((greedyPriority / optimalPriority) * 100).toFixed(1) : "100.0";
 
-    const o = bruteForceSchedule(allBugs, hours);
-    optimalResult = { totalPriority: o.totalPriority, count: o.bugs.length, hoursUsed: o.hoursUsed };
-  }
-
-  const gp = greedyResult.totalPriority || 0;
-  const op = optimalResult.totalPriority || 0;
-  const max = Math.max(gp, op, 1);
-  const efficiency = op > 0 ? ((gp / op) * 100).toFixed(1) : '100.0';
-
-  container.classList.remove('hidden');
-  container.innerHTML = `
+  resultBox.classList.remove("hidden");
+  resultBox.innerHTML = `
     <div class="compare-row">
       <span class="compare-label">Greedy</span>
-      <span class="compare-value compare-greedy">${gp.toFixed(1)}</span>
+      <span class="compare-value compare-greedy">${greedyPriority.toFixed(1)}</span>
     </div>
     <div class="compare-row">
       <span class="compare-label">Optimal (brute-force)</span>
-      <span class="compare-value compare-optimal">${op.toFixed(1)}</span>
+      <span class="compare-value compare-optimal">${optimalPriority.toFixed(1)}</span>
     </div>
     <div class="compare-bar">
-      <div class="compare-bar-optimal" style="width:${(op/max)*100}%"></div>
-      <div class="compare-bar-greedy" style="width:${(gp/max)*100}%"></div>
+      <div class="compare-bar-optimal" style="width:${optimalPct}%"></div>
+      <div class="compare-bar-greedy" style="width:${greedyPct}%"></div>
     </div>
     <div class="compare-verdict">Greedy achieves ${efficiency}% of optimal</div>
   `;
 }
 
-// ── FLASH ──
-function showFlash(msg, type = 'success') {
-  const el = document.getElementById('flash');
-  el.textContent = msg;
-  el.className = `flash ${type}`;
-  setTimeout(() => {
-    el.classList.add('hidden');
-  }, 2500);
+function showFlash(message, type = "success") {
+  const flash = document.getElementById("flash");
+  flash.textContent = message;
+  flash.className = `flash ${type}`;
+  setTimeout(() => flash.classList.add("hidden"), 2600);
 }
 
-// ── INIT ──
+function escapeHTML(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function init() {
-  await fetchBugs();
+  try {
+    await fetchBugs(true);
+  } catch (error) {
+    showFlash(`Could not load live bugs: ${String(error.message || error)}`, "error");
+    allBugs = [];
+  }
+
   renderStats();
   renderBugList();
   renderDeployTarget();
 
-  document.getElementById('btn-deploy').addEventListener('click', deployFix);
-  document.getElementById('btn-schedule').addEventListener('click', runSchedule);
-  document.getElementById('btn-compare').addEventListener('click', runComparison);
-  document.getElementById('top-k-select').addEventListener('change', renderBugList);
+  document.getElementById("btn-deploy").addEventListener("click", deployFix);
+  document.getElementById("btn-schedule").addEventListener("click", runSchedule);
+  document.getElementById("btn-compare").addEventListener("click", runComparison);
+  document.getElementById("top-k-select").addEventListener("change", renderBugList);
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener("DOMContentLoaded", init);

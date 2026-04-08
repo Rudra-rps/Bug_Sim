@@ -11,11 +11,11 @@
 }
 
 :root {
-  --bg:          #0B0E14;
-  --bg-card:     #12161F;
-  --bg-hover:    #1A1F2B;
-  --border:      #1E2433;
-  --border-focus:#3B4455;
+  --bg:          #0D0B1E;
+  --bg-card:     #12102A;
+  --bg-hover:    #1A1535;
+  --border:      #2A2548;
+  --border-focus:#3D3660;
 
   --cyan:        #3DFFC0;
   --coral:       #E8905A;
@@ -23,9 +23,9 @@
   --red:         #FF4D6D;
   --purple:      #8B7EC8;
 
-  --text:        #E8ECF1;
-  --text-dim:    #6B7280;
-  --text-muted:  #3D4451;
+  --text:        #F0E6FF;
+  --text-dim:    #6B5B8E;
+  --text-muted:  #3D3660;
 
   --font:        'Inter', -apple-system, sans-serif;
   --mono:        'JetBrains Mono', monospace;
