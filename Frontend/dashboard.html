@@ -1,110 +1,164 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BugOff — Bug Bounty Priority Engine. Smart bug triage for open source maintainers.">
-  <title>BugOff — Bug Bounty Priority Engine</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BugOff command dashboard for live bug triage.">
+  <title>BugOff Command Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip-link" href="#queueList">Skip to queue</a>
 
-  <!-- ── HEADER ── -->
-  <header id="header">
-    <div class="header-left">
-      <div class="logo">
-        <span class="logo-bug">BUG</span><span class="logo-off">OFF</span>
-      </div>
-      <span class="logo-tag">PRIORITY ENGINE</span>
+  <header class="topbar">
+    <div class="brand-zone">
+      <a href="/" class="brand-link">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span class="brand-name">BUGOFF</span>
+      </a>
+      <p class="brand-sub">Bug Bounty Priority Engine</p>
     </div>
-    <div class="header-stats">
-      <div class="stat-chip">
-        <span class="stat-label">BUGS</span>
-        <span class="stat-value" id="stat-total">0</span>
-      </div>
-      <div class="stat-chip">
-        <span class="stat-label">CRITICAL</span>
-        <span class="stat-value stat-critical" id="stat-critical">0</span>
-      </div>
-      <div class="stat-chip">
-        <span class="stat-label">INTEGRITY</span>
-        <span class="stat-value stat-integrity" id="stat-integrity">—</span>
-      </div>
+
+    <div class="status-zone" aria-live="polite">
+      <span id="statusDot" class="status-dot status-offline"></span>
+      <span id="statusText" class="status-text">Offline</span>
+      <span class="status-divider" aria-hidden="true">/</span>
+      <span id="lastSync" class="status-sync">Last sync: never</span>
     </div>
+
+    <button id="btnRefresh" class="btn btn-primary" type="button">Refresh Live Data</button>
   </header>
 
-  <!-- ── MAIN LAYOUT ── -->
-  <main id="app">
+  <main class="dashboard-shell">
+    <section id="globalAlert" class="alert hidden" role="alert" aria-live="assertive"></section>
 
-    <!-- LEFT: BUG QUEUE -->
-    <section id="queue-section">
-      <div class="section-header">
-        <h2>Priority Queue</h2>
-        <div class="section-controls">
-          <label class="top-k-label">
-            Show top
-            <select id="top-k-select">
-              <option value="5" selected>5</option>
-              <option value="10">10</option>
-              <option value="15">All</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div id="bug-list">
-        <!-- Bug cards rendered by JS -->
-      </div>
+    <section class="kpi-strip" aria-label="Command metrics">
+      <article class="kpi-card">
+        <p class="kpi-label">Total Bugs</p>
+        <p id="kpiTotal" class="kpi-value">0</p>
+      </article>
+      <article class="kpi-card">
+        <p class="kpi-label">Critical</p>
+        <p id="kpiCritical" class="kpi-value danger">0</p>
+      </article>
+      <article class="kpi-card">
+        <p class="kpi-label">Average Priority</p>
+        <p id="kpiAvg" class="kpi-value accent">0.0</p>
+      </article>
     </section>
 
-    <!-- RIGHT PANEL -->
-    <aside id="side-panel">
-
-      <!-- DEPLOY SECTION -->
-      <div class="panel-card" id="deploy-card">
-        <h3>Next Deploy</h3>
-        <div id="deploy-target">
-          <p class="deploy-empty">Select a bug to deploy</p>
+    <section class="grid-layout">
+      <section class="panel queue-panel" aria-labelledby="queueHeading">
+        <div class="panel-head">
+          <div>
+            <h1 id="queueHeading">Live Priority Queue</h1>
+            <p id="queueState" class="panel-note">Loading live issues...</p>
+          </div>
+          <div class="control-row">
+            <label for="sortSelect">Sort</label>
+            <select id="sortSelect">
+              <option value="priority_desc">Priority: High to Low</option>
+              <option value="priority_asc">Priority: Low to High</option>
+            </select>
+            <label for="limitSelect">Show</label>
+            <select id="limitSelect">
+              <option value="5">Top 5</option>
+              <option value="10">Top 10</option>
+              <option value="20" selected>Top 20</option>
+              <option value="999">All</option>
+            </select>
+          </div>
         </div>
-        <button id="btn-deploy" class="btn btn-primary" disabled>
-          <span class="btn-icon">▶</span> DEPLOY FIX
-        </button>
-      </div>
 
-      <!-- SCHEDULE SECTION -->
-      <div class="panel-card" id="schedule-card">
-        <h3>
-          Battle Plan
-          <span class="badge">GREEDY</span>
-        </h3>
-        <div class="schedule-controls">
-          <label>
-            Budget:
-            <input type="number" id="budget-input" value="8" min="1" max="100" class="input-hours"> hrs
-          </label>
-          <button id="btn-schedule" class="btn btn-secondary">PLAN</button>
-        </div>
-        <div id="schedule-list">
-          <p class="schedule-empty">Set a budget and click PLAN</p>
-        </div>
-        <div id="schedule-summary" class="hidden"></div>
-      </div>
+        <div id="queueList" class="queue-list" role="listbox" aria-label="Prioritized issues"></div>
+      </section>
 
-      <!-- COMPARISON SECTION -->
-      <div class="panel-card" id="compare-card">
-        <h3>Greedy vs Optimal</h3>
-        <button id="btn-compare" class="btn btn-outline">RUN COMPARISON</button>
-        <div id="compare-result" class="hidden"></div>
-      </div>
+      <aside class="side-stack">
+        <section class="panel detail-panel" aria-labelledby="detailHeading">
+          <div class="panel-head compact">
+            <h2 id="detailHeading">Issue Detail</h2>
+            <button id="detailFix" class="btn btn-danger" type="button" disabled>Deploy Fix</button>
+          </div>
 
-    </aside>
+          <p id="detailState" class="panel-note">Select an issue from queue.</p>
+          <h3 id="detailTitle" class="detail-title"></h3>
+          <dl id="detailMeta" class="meta-grid"></dl>
+          <a id="sourceLink" class="source-link hidden" target="_blank" rel="noopener noreferrer">Open issue</a>
+
+          <h4 class="section-title">Score Breakdown</h4>
+          <div class="meter-group">
+            <div class="meter-row">
+              <span>Severity</span>
+              <span id="labelSeverity">0</span>
+              <div class="meter-track"><div id="breakSeverity" class="meter-fill"></div></div>
+            </div>
+            <div class="meter-row">
+              <span>Bounty</span>
+              <span id="labelBounty">0</span>
+              <div class="meter-track"><div id="breakBounty" class="meter-fill"></div></div>
+            </div>
+            <div class="meter-row">
+              <span>Reproductions</span>
+              <span id="labelRepro">0</span>
+              <div class="meter-track"><div id="breakRepro" class="meter-fill"></div></div>
+            </div>
+            <div class="meter-row">
+              <span>Age</span>
+              <span id="labelAge">0</span>
+              <div class="meter-track"><div id="breakAge" class="meter-fill"></div></div>
+            </div>
+          </div>
+
+          <h4 class="section-title">Explainability</h4>
+          <p id="explainState" class="panel-note subtle">No explanation loaded.</p>
+          <p id="explainSummary" class="explain-copy"></p>
+          <p id="explainDetail" class="explain-copy detail"></p>
+        </section>
+
+        <section class="panel" aria-labelledby="scheduleHeading">
+          <div class="panel-head compact">
+            <h2 id="scheduleHeading">Scheduler</h2>
+          </div>
+          <form id="scheduleForm" class="scheduler-form">
+            <label for="hoursInput">Developer hours</label>
+            <input id="hoursInput" type="number" min="1" max="80" value="8" required>
+            <button class="btn btn-secondary" type="submit">Build Plan</button>
+          </form>
+          <p id="scheduleState" class="panel-note subtle">No schedule generated yet.</p>
+          <ul id="scheduleList" class="schedule-list"></ul>
+          <div id="scheduleTotals" class="totals hidden"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="compareHeading">
+          <div class="panel-head compact">
+            <h2 id="compareHeading">Greedy vs Optimal</h2>
+            <button id="compareButton" class="btn btn-ghost" type="button">Run Compare</button>
+          </div>
+          <p id="compareState" class="panel-note subtle">Comparison not run yet.</p>
+          <div class="compare-grid">
+            <div class="compare-cell">
+              <span class="compare-label">Greedy</span>
+              <span id="compareGreedy" class="compare-value">0.0</span>
+            </div>
+            <div class="compare-cell">
+              <span class="compare-label">Optimal</span>
+              <span id="compareOptimal" class="compare-value">0.0</span>
+            </div>
+          </div>
+          <div class="compare-bars" aria-hidden="true">
+            <div id="compareBarOptimal" class="bar-optimal"></div>
+            <div id="compareBarGreedy" class="bar-greedy"></div>
+          </div>
+          <p id="compareEfficiency" class="efficiency"></p>
+        </section>
+      </aside>
+    </section>
   </main>
 
-  <!-- FLASH NOTIFICATION -->
-  <div id="flash" class="flash hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

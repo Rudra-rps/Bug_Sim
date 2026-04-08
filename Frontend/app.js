@@ -1,409 +1,721 @@
-const API = "";
+const API_BASE = "";
 
-let allBugs = [];
-let selectedBugID = null;
-let initialBugCount = 0;
-let fixedCount = 0;
+// --------------------------
+// State
+// --------------------------
+const state = {
+  bugs: [],
+  selectedId: null,
+  sortMode: "priority_desc",
+  limit: 20,
+  loadingBugs: false,
+  fetchError: "",
+  online: false,
+  lastSync: null,
+  explain: {
+    loading: false,
+    error: "",
+    summary: "",
+    detail: "",
+    bugId: null,
+    seq: 0,
+  },
+  schedule: {
+    loading: false,
+    error: "",
+    hours: 8,
+    bugs: [],
+  },
+  compare: {
+    loading: false,
+    error: "",
+    data: null,
+  },
+};
 
-function toNumber(value, fallback = 0) {
-  const n = Number(value);
+const elements = {
+  statusDot: document.getElementById("statusDot"),
+  statusText: document.getElementById("statusText"),
+  lastSync: document.getElementById("lastSync"),
+  btnRefresh: document.getElementById("btnRefresh"),
+  globalAlert: document.getElementById("globalAlert"),
+
+  kpiTotal: document.getElementById("kpiTotal"),
+  kpiCritical: document.getElementById("kpiCritical"),
+  kpiAvg: document.getElementById("kpiAvg"),
+
+  sortSelect: document.getElementById("sortSelect"),
+  limitSelect: document.getElementById("limitSelect"),
+  queueState: document.getElementById("queueState"),
+  queueList: document.getElementById("queueList"),
+
+  detailFix: document.getElementById("detailFix"),
+  detailState: document.getElementById("detailState"),
+  detailTitle: document.getElementById("detailTitle"),
+  detailMeta: document.getElementById("detailMeta"),
+  sourceLink: document.getElementById("sourceLink"),
+
+  breakSeverity: document.getElementById("breakSeverity"),
+  breakBounty: document.getElementById("breakBounty"),
+  breakRepro: document.getElementById("breakRepro"),
+  breakAge: document.getElementById("breakAge"),
+  labelSeverity: document.getElementById("labelSeverity"),
+  labelBounty: document.getElementById("labelBounty"),
+  labelRepro: document.getElementById("labelRepro"),
+  labelAge: document.getElementById("labelAge"),
+
+  explainState: document.getElementById("explainState"),
+  explainSummary: document.getElementById("explainSummary"),
+  explainDetail: document.getElementById("explainDetail"),
+
+  scheduleForm: document.getElementById("scheduleForm"),
+  hoursInput: document.getElementById("hoursInput"),
+  scheduleState: document.getElementById("scheduleState"),
+  scheduleList: document.getElementById("scheduleList"),
+  scheduleTotals: document.getElementById("scheduleTotals"),
+
+  compareButton: document.getElementById("compareButton"),
+  compareState: document.getElementById("compareState"),
+  compareGreedy: document.getElementById("compareGreedy"),
+  compareOptimal: document.getElementById("compareOptimal"),
+  compareBarGreedy: document.getElementById("compareBarGreedy"),
+  compareBarOptimal: document.getElementById("compareBarOptimal"),
+  compareEfficiency: document.getElementById("compareEfficiency"),
+
+  toast: document.getElementById("toast"),
+};
+
+// --------------------------
+// API Client
+// --------------------------
+const api = {
+  async getBugs(forceRefresh) {
+    const query = forceRefresh ? "?refresh=1" : "";
+    return requestJSON(`/api/bugs${query}`);
+  },
+
+  async getTop(k) {
+    return requestJSON(`/api/top?k=${encodeURIComponent(k)}`);
+  },
+
+  async fix(id) {
+    return requestJSON(`/api/fix/${encodeURIComponent(id)}`, { method: "POST" });
+  },
+
+  async schedule(hours) {
+    return requestJSON(`/api/schedule?hours=${encodeURIComponent(hours)}`);
+  },
+
+  async compare(hours) {
+    return requestJSON(`/api/compare?hours=${encodeURIComponent(hours)}`);
+  },
+
+  async explain(id) {
+    return requestJSON(`/api/explain/${encodeURIComponent(id)}`);
+  },
+};
+
+async function requestJSON(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      Accept: "application/json",
+    },
+    ...options,
+  });
+
+  const raw = await response.text();
+  let parsed = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!response.ok) {
+    const message = parsed?.error || raw || `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return parsed;
+}
+
+// --------------------------
+// Data helpers
+// --------------------------
+function normalizeBug(raw) {
+  const bug = {
+    id: toInt(raw?.id ?? raw?.ID, 0),
+    title: String(raw?.title ?? raw?.Title ?? "Untitled bug"),
+    severity: clamp(toInt(raw?.severity ?? raw?.Severity, 3), 1, 5),
+    age: Math.max(0, toInt(raw?.age ?? raw?.Age, 0)),
+    bountyValue: Math.max(0, toInt(raw?.bountyValue ?? raw?.BountyValue, 0)),
+    reproductions: Math.max(0, toInt(raw?.reproductions ?? raw?.Reproductions, 0)),
+    estimatedFixHours: Math.max(1, toInt(raw?.estimatedFixHours ?? raw?.EstimatedFixHours, 1)),
+    source: String(raw?.source ?? raw?.Source ?? "unknown"),
+    url: String(raw?.url ?? raw?.URL ?? ""),
+    priority: toFloat(raw?.priority ?? raw?.Priority, 0),
+    priorityBreakdown: {
+      severity: clamp(toFloat(raw?.priorityBreakdown?.severity ?? raw?.PriorityBreakdown?.severity, 0), 0, 100),
+      bountyValue: clamp(toFloat(raw?.priorityBreakdown?.bountyValue ?? raw?.PriorityBreakdown?.bountyValue, 0), 0, 100),
+      reproductions: clamp(toFloat(raw?.priorityBreakdown?.reproductions ?? raw?.PriorityBreakdown?.reproductions, 0), 0, 100),
+      age: clamp(toFloat(raw?.priorityBreakdown?.age ?? raw?.PriorityBreakdown?.age, 0), 0, 100),
+    },
+  };
+  return bug;
+}
+
+function normalizeBugList(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list.map(normalizeBug).filter((bug) => bug.id > 0);
+}
+
+function selectedBug() {
+  return state.bugs.find((bug) => bug.id === state.selectedId) || null;
+}
+
+function visibleBugs() {
+  const copy = [...state.bugs];
+  copy.sort((a, b) => {
+    if (state.sortMode === "priority_asc") {
+      return a.priority - b.priority;
+    }
+    return b.priority - a.priority;
+  });
+  return copy.slice(0, Math.max(1, state.limit));
+}
+
+function severityName(severity) {
+  switch (severity) {
+    case 5: return "Critical";
+    case 4: return "High";
+    case 3: return "Medium";
+    case 2: return "Low";
+    default: return "Info";
+  }
+}
+
+function toInt(value, fallback) {
+  const n = Number.parseInt(value, 10);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeBug(raw) {
-  const id = toNumber(raw.id ?? raw.ID, 0);
-  const title = String(raw.title ?? raw.Title ?? "Untitled bug");
-  const severity = Math.max(1, Math.min(5, Math.round(toNumber(raw.severity ?? raw.Severity, 3))));
-  const age = Math.max(0, Math.round(toNumber(raw.age ?? raw.Age, 0)));
-  const bountyValue = Math.max(0, Math.round(toNumber(raw.bountyValue ?? raw.BountyValue, 0)));
-  const reproductions = Math.max(1, Math.round(toNumber(raw.reproductions ?? raw.Reproductions, 1)));
-  const estimatedFixHours = Math.max(1, Math.round(toNumber(raw.estimatedFixHours ?? raw.EstimatedFixHours, 1)));
-  const source = String(raw.source ?? raw.Source ?? "github");
-  const url = String(raw.url ?? raw.URL ?? "#");
-  const priority = toNumber(raw.priority ?? raw.Priority, 0);
-
-  return {
-    id,
-    title,
-    severity,
-    age,
-    bountyValue,
-    reproductions,
-    estimatedFixHours,
-    source,
-    url,
-    priority,
-  };
+function toFloat(value, fallback) {
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeBugs(data) {
-  if (!Array.isArray(data)) {
-    return [];
-  }
-  return data
-    .map(normalizeBug)
-    .filter((bug) => bug.id > 0)
-    .sort((a, b) => b.priority - a.priority);
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
-function severityLabel(severity) {
-  if (severity >= 5) return "critical";
-  if (severity >= 4) return "high";
-  if (severity >= 3) return "medium";
-  return "low";
+function formatMoney(amount) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-async function fetchBugs(refresh = false) {
-  const suffix = refresh ? "?refresh=1" : "";
-  const response = await fetch(`${API}/api/bugs${suffix}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch bugs (${response.status})`);
-  }
-  const data = await response.json();
-  allBugs = normalizeBugs(data);
-  if (initialBugCount === 0) {
-    initialBugCount = allBugs.length;
-  }
+function formatTime(date) {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-async function apiFix(id) {
-  const response = await fetch(`${API}/api/fix/${id}`, { method: "POST" });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Failed to fix bug ${id}`);
-  }
-  return response.json();
+// --------------------------
+// Render
+// --------------------------
+function renderAll() {
+  renderStatus();
+  renderGlobalAlert();
+  renderKpis();
+  renderQueue();
+  renderDetail();
+  renderSchedule();
+  renderCompare();
 }
 
-async function apiSchedule(hours) {
-  const response = await fetch(`${API}/api/schedule?hours=${hours}`);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Failed to fetch schedule");
-  }
-  const data = await response.json();
-  return normalizeBugs(data);
+function renderStatus() {
+  elements.statusDot.classList.toggle("status-online", state.online);
+  elements.statusDot.classList.toggle("status-offline", !state.online);
+  elements.statusText.textContent = state.online ? "Live" : "Offline";
+  elements.lastSync.textContent = state.lastSync
+    ? `Last sync: ${formatTime(state.lastSync)}`
+    : "Last sync: never";
 }
 
-async function apiCompare(hours) {
-  const response = await fetch(`${API}/api/compare?hours=${hours}`);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Failed to compare schedules");
-  }
-  return response.json();
-}
-
-function localSchedule(bugs, budgetHours) {
-  const sorted = [...bugs].sort((a, b) => {
-    const ratioA = a.priority / a.estimatedFixHours;
-    const ratioB = b.priority / b.estimatedFixHours;
-    if (ratioA === ratioB) return b.priority - a.priority;
-    return ratioB - ratioA;
-  });
-
-  const selected = [];
-  let usedHours = 0;
-  let totalPriority = 0;
-  for (const bug of sorted) {
-    if (usedHours + bug.estimatedFixHours > budgetHours) continue;
-    selected.push(bug);
-    usedHours += bug.estimatedFixHours;
-    totalPriority += bug.priority;
-  }
-
-  return { bugs: selected, usedHours, totalPriority };
-}
-
-function localBruteForce(bugs, budgetHours, cap = 15) {
-  const candidates = [...bugs].sort((a, b) => b.priority - a.priority).slice(0, cap);
-  const n = candidates.length;
-  let bestMask = 0;
-  let bestPriority = -1;
-  let bestHours = 0;
-
-  const limit = 1 << n;
-  for (let mask = 0; mask < limit; mask++) {
-    let usedHours = 0;
-    let totalPriority = 0;
-    let valid = true;
-
-    for (let i = 0; i < n; i++) {
-      if ((mask & (1 << i)) === 0) continue;
-      usedHours += candidates[i].estimatedFixHours;
-      if (usedHours > budgetHours) {
-        valid = false;
-        break;
-      }
-      totalPriority += candidates[i].priority;
-    }
-
-    if (!valid) continue;
-    if (totalPriority > bestPriority || (Math.abs(totalPriority - bestPriority) < 0.0001 && usedHours < bestHours)) {
-      bestPriority = totalPriority;
-      bestHours = usedHours;
-      bestMask = mask;
-    }
-  }
-
-  const selected = [];
-  for (let i = 0; i < n; i++) {
-    if ((bestMask & (1 << i)) !== 0) selected.push(candidates[i]);
-  }
-  return {
-    bugs: selected,
-    usedHours: bestHours,
-    totalPriority: Math.max(bestPriority, 0),
-  };
-}
-
-function renderStats() {
-  const totalEl = document.getElementById("stat-total");
-  const criticalEl = document.getElementById("stat-critical");
-  const integrityEl = document.getElementById("stat-integrity");
-
-  totalEl.textContent = String(allBugs.length);
-  criticalEl.textContent = String(allBugs.filter((bug) => bug.severity >= 5).length);
-
-  if (initialBugCount <= 0) {
-    integrityEl.textContent = "-";
+function renderGlobalAlert() {
+  if (!state.fetchError) {
+    elements.globalAlert.classList.add("hidden");
+    elements.globalAlert.textContent = "";
     return;
   }
-  const pct = Math.round((fixedCount / initialBugCount) * 100);
-  integrityEl.textContent = `${pct}%`;
+  elements.globalAlert.classList.remove("hidden");
+  elements.globalAlert.textContent = state.fetchError;
 }
 
-function renderBugList() {
-  const list = document.getElementById("bug-list");
-  const topKRaw = Number(document.getElementById("top-k-select").value || 5);
-  const maxCount = topKRaw >= 15 ? allBugs.length : topKRaw;
-  const bugs = allBugs.slice(0, maxCount);
-  const maxPriority = bugs.length > 0 ? bugs[0].priority : 1;
+function renderKpis() {
+  const total = state.bugs.length;
+  const critical = state.bugs.filter((bug) => bug.severity >= 5).length;
+  const avg = total === 0
+    ? 0
+    : state.bugs.reduce((sum, bug) => sum + bug.priority, 0) / total;
 
-  list.innerHTML = "";
-  for (let i = 0; i < bugs.length; i++) {
-    const bug = bugs[i];
-    const severityClass = severityLabel(bug.severity);
-    const card = document.createElement("div");
-    card.className = `bug-card sev-${severityClass}`;
-    if (bug.id === selectedBugID) card.classList.add("selected");
+  elements.kpiTotal.textContent = String(total);
+  elements.kpiCritical.textContent = String(critical);
+  elements.kpiAvg.textContent = avg.toFixed(1);
+}
 
-    const bountyText = bug.bountyValue >= 1000
-      ? `$${(bug.bountyValue / 1000).toFixed(1)}K`
-      : `$${bug.bountyValue}`;
-    const scoreBarWidth = Math.round((bug.priority / maxPriority) * 100);
-    const color = severityClass === "critical"
-      ? "var(--red)"
-      : severityClass === "high"
-        ? "var(--coral)"
-        : severityClass === "medium"
-          ? "var(--amber)"
-          : "var(--cyan)";
+function renderQueue() {
+  const bugs = visibleBugs();
+  elements.queueList.innerHTML = "";
 
-    card.innerHTML = `
-      <div class="bug-rank">#${i + 1}</div>
-      <div class="bug-info">
-        <div class="bug-title">${escapeHTML(bug.title)}</div>
-        <div class="bug-meta">
-          <span class="bug-tag tag-severity sev-${severityClass}">${severityClass.toUpperCase()}</span>
-          <span class="bug-tag tag-bounty">${bountyText}</span>
-          <span class="bug-tag tag-hours">${bug.estimatedFixHours}h</span>
-          <span class="bug-tag tag-repro">${bug.reproductions} repro</span>
-        </div>
-        <div class="bug-source">${escapeHTML(bug.source)}</div>
-      </div>
-      <div class="bug-stats">
-        <div class="bug-score">${bug.priority.toFixed(1)}</div>
-        <div class="bug-score-label">priority</div>
-        <div class="score-bar">
-          <div class="score-bar-fill" style="width:${scoreBarWidth}%;background:${color}"></div>
-        </div>
-      </div>
-    `;
+  if (state.loadingBugs) {
+    elements.queueState.textContent = "Loading live issues...";
+    return;
+  }
 
-    card.addEventListener("click", () => selectBug(bug.id));
-    list.appendChild(card);
+  if (bugs.length === 0) {
+    elements.queueState.textContent = "No bugs available.";
+    return;
+  }
+
+  elements.queueState.textContent = `Showing ${bugs.length} issues`;
+
+  bugs.forEach((bug, index) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `queue-item severity-${bug.severity}`;
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", bug.id === state.selectedId ? "true" : "false");
+    item.dataset.id = String(bug.id);
+    item.style.animationDelay = `${index * 28}ms`;
+    if (bug.id === state.selectedId) {
+      item.classList.add("selected");
+    }
+
+    const title = document.createElement("p");
+    title.className = "queue-title";
+    title.textContent = bug.title;
+
+    const rank = document.createElement("span");
+    rank.className = "queue-rank";
+    rank.textContent = `#${index + 1}`;
+
+    const meta = document.createElement("div");
+    meta.className = "queue-meta";
+    meta.append(
+      chip(`S${bug.severity} ${severityName(bug.severity)}`, `chip-severity-${bug.severity}`),
+      chip(formatMoney(bug.bountyValue)),
+      chip(`${bug.estimatedFixHours}h`),
+      chip(`${bug.reproductions} repro`)
+    );
+
+    const footer = document.createElement("div");
+    footer.className = "queue-footer";
+
+    const source = document.createElement("span");
+    source.textContent = `${bug.source} | Age ${bug.age}d`;
+
+    const priority = document.createElement("span");
+    priority.className = "queue-priority";
+    priority.textContent = bug.priority.toFixed(1);
+
+    footer.append(source, priority);
+    item.append(rank, title, meta, footer);
+    elements.queueList.appendChild(item);
+  });
+}
+
+function chip(text, className) {
+  const span = document.createElement("span");
+  span.className = `chip ${className || ""}`.trim();
+  span.textContent = text;
+  return span;
+}
+
+function renderDetail() {
+  const bug = selectedBug();
+  const hasBug = !!bug;
+
+  elements.detailFix.disabled = !hasBug;
+  elements.detailTitle.textContent = hasBug ? bug.title : "";
+  elements.detailMeta.innerHTML = "";
+
+  if (!hasBug) {
+    elements.detailState.textContent = "Select a bug to inspect.";
+    elements.sourceLink.classList.add("hidden");
+    clearBreakdown();
+    renderExplain();
+    return;
+  }
+
+  elements.detailState.textContent = `ID ${bug.id} | Priority ${bug.priority.toFixed(1)}`;
+
+  addMeta("Severity", `${bug.severity} (${severityName(bug.severity)})`);
+  addMeta("Bounty", formatMoney(bug.bountyValue));
+  addMeta("Age", `${bug.age} days`);
+  addMeta("Reproductions", String(bug.reproductions));
+  addMeta("Est. Fix Time", `${bug.estimatedFixHours} hours`);
+  addMeta("Source", bug.source);
+
+  if (bug.url) {
+    elements.sourceLink.href = bug.url;
+    elements.sourceLink.classList.remove("hidden");
+  } else {
+    elements.sourceLink.classList.add("hidden");
+  }
+
+  applyBreakdown(bug.priorityBreakdown);
+  renderExplain();
+}
+
+function addMeta(label, value) {
+  const dt = document.createElement("dt");
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  dd.textContent = value;
+  elements.detailMeta.append(dt, dd);
+}
+
+function clearBreakdown() {
+  applyBreakdown({
+    severity: 0,
+    bountyValue: 0,
+    reproductions: 0,
+    age: 0,
+  });
+}
+
+function applyBreakdown(breakdown) {
+  setMeter(elements.breakSeverity, elements.labelSeverity, breakdown.severity);
+  setMeter(elements.breakBounty, elements.labelBounty, breakdown.bountyValue);
+  setMeter(elements.breakRepro, elements.labelRepro, breakdown.reproductions);
+  setMeter(elements.breakAge, elements.labelAge, breakdown.age);
+}
+
+function setMeter(bar, label, value) {
+  const safe = clamp(toFloat(value, 0), 0, 100);
+  bar.style.width = `${safe}%`;
+  label.textContent = safe.toFixed(0);
+}
+
+function renderExplain() {
+  if (!state.selectedId) {
+    elements.explainState.textContent = "No explanation loaded.";
+    elements.explainSummary.textContent = "";
+    elements.explainDetail.textContent = "";
+    return;
+  }
+
+  if (state.explain.loading) {
+    elements.explainState.textContent = "Loading explanation...";
+    elements.explainSummary.textContent = "";
+    elements.explainDetail.textContent = "";
+    return;
+  }
+
+  if (state.explain.error) {
+    elements.explainState.textContent = state.explain.error;
+    elements.explainSummary.textContent = "";
+    elements.explainDetail.textContent = "";
+    return;
+  }
+
+  elements.explainState.textContent = "";
+  elements.explainSummary.textContent = state.explain.summary || "";
+  elements.explainDetail.textContent = state.explain.detail || "";
+}
+
+function renderSchedule() {
+  elements.scheduleList.innerHTML = "";
+  elements.scheduleTotals.classList.add("hidden");
+  elements.scheduleTotals.textContent = "";
+
+  if (state.schedule.loading) {
+    elements.scheduleState.textContent = "Generating schedule...";
+    return;
+  }
+
+  if (state.schedule.error) {
+    elements.scheduleState.textContent = state.schedule.error;
+    return;
+  }
+
+  if (state.schedule.bugs.length === 0) {
+    elements.scheduleState.textContent = "No schedule generated yet.";
+    return;
+  }
+
+  elements.scheduleState.textContent = `Selected ${state.schedule.bugs.length} bugs`;
+
+  let usedHours = 0;
+  let totalPriority = 0;
+  state.schedule.bugs.forEach((bug) => {
+    usedHours += bug.estimatedFixHours;
+    totalPriority += bug.priority;
+
+    const li = document.createElement("li");
+    li.className = "schedule-item";
+
+    const title = document.createElement("strong");
+    title.textContent = bug.title;
+
+    const hours = document.createElement("span");
+    hours.textContent = `${bug.estimatedFixHours}h`;
+
+    const score = document.createElement("span");
+    score.textContent = bug.priority.toFixed(1);
+
+    li.append(title, hours, score);
+    elements.scheduleList.appendChild(li);
+  });
+
+  elements.scheduleTotals.classList.remove("hidden");
+  elements.scheduleTotals.innerHTML = "";
+  elements.scheduleTotals.append(
+    totalsRow("Budget", `${state.schedule.hours}h`),
+    totalsRow("Used", `${usedHours}h`),
+    totalsRow("Total Priority", totalPriority.toFixed(1))
+  );
+}
+
+function totalsRow(label, value) {
+  const row = document.createElement("div");
+  row.textContent = `${label}: ${value}`;
+  return row;
+}
+
+function renderCompare() {
+  if (state.compare.loading) {
+    elements.compareState.textContent = "Running comparison...";
+    return;
+  }
+
+  if (state.compare.error) {
+    elements.compareState.textContent = state.compare.error;
+    return;
+  }
+
+  if (!state.compare.data) {
+    elements.compareState.textContent = "Comparison not run yet.";
+    elements.compareGreedy.textContent = "0.0";
+    elements.compareOptimal.textContent = "0.0";
+    elements.compareBarGreedy.style.width = "0%";
+    elements.compareBarOptimal.style.width = "0%";
+    elements.compareEfficiency.textContent = "";
+    return;
+  }
+
+  const greedy = toFloat(state.compare.data?.greedy?.totalPriority, 0);
+  const optimal = toFloat(state.compare.data?.optimal?.totalPriority, 0);
+  const max = Math.max(greedy, optimal, 1);
+  const greedyPct = (greedy / max) * 100;
+  const optimalPct = (optimal / max) * 100;
+  const efficiency = optimal > 0 ? (greedy / optimal) * 100 : 100;
+
+  elements.compareState.textContent = "Comparison complete.";
+  elements.compareGreedy.textContent = greedy.toFixed(1);
+  elements.compareOptimal.textContent = optimal.toFixed(1);
+  elements.compareBarGreedy.style.width = `${greedyPct}%`;
+  elements.compareBarOptimal.style.width = `${optimalPct}%`;
+  elements.compareEfficiency.textContent = `Greedy reaches ${efficiency.toFixed(1)}% of optimal`;
+}
+
+// --------------------------
+// Actions
+// --------------------------
+async function loadBugs(forceRefresh) {
+  state.loadingBugs = true;
+  state.fetchError = "";
+  renderAll();
+
+  try {
+    const response = await api.getBugs(forceRefresh);
+    state.bugs = normalizeBugList(response);
+    state.online = true;
+    state.lastSync = new Date();
+
+    if (!state.selectedId || !state.bugs.some((bug) => bug.id === state.selectedId)) {
+      state.selectedId = state.bugs.length ? state.bugs[0].id : null;
+    }
+  } catch (error) {
+    state.online = false;
+    state.fetchError = `Live fetch failed: ${error.message}`;
+  } finally {
+    state.loadingBugs = false;
+    renderAll();
+  }
+
+  if (state.selectedId) {
+    await loadExplain(state.selectedId);
   }
 }
 
-function renderDeployTarget() {
-  const target = document.getElementById("deploy-target");
-  const button = document.getElementById("btn-deploy");
-  const bug = allBugs.find((item) => item.id === selectedBugID);
+async function selectBugById(id) {
+  if (!state.bugs.some((bug) => bug.id === id)) {
+    return;
+  }
+  state.selectedId = id;
+  renderAll();
+  await loadExplain(id);
+}
 
+async function loadExplain(bugId) {
+  state.explain.seq += 1;
+  const seq = state.explain.seq;
+  state.explain.loading = true;
+  state.explain.error = "";
+  state.explain.summary = "";
+  state.explain.detail = "";
+  state.explain.bugId = bugId;
+  renderDetail();
+
+  try {
+    const response = await api.explain(bugId);
+    if (seq !== state.explain.seq) return;
+    state.explain.summary = String(response?.summary || "");
+    state.explain.detail = String(response?.detail || "");
+  } catch (error) {
+    if (seq !== state.explain.seq) return;
+    state.explain.error = `Explain failed: ${error.message}`;
+  } finally {
+    if (seq !== state.explain.seq) return;
+    state.explain.loading = false;
+    renderDetail();
+  }
+}
+
+async function deployFixSelected() {
+  const bug = selectedBug();
   if (!bug) {
-    target.innerHTML = "<p class='deploy-empty'>Select a bug to deploy</p>";
-    button.disabled = true;
     return;
   }
 
-  const severityClass = severityLabel(bug.severity);
-  const bountyText = bug.bountyValue >= 1000
-    ? `$${(bug.bountyValue / 1000).toFixed(1)}K`
-    : `$${bug.bountyValue}`;
-  const safeURL = bug.url && bug.url !== "#" ? bug.url : "";
-  const urlHTML = safeURL
-    ? `<a href="${safeURL}" target="_blank" rel="noopener noreferrer">View Issue</a>`
-    : "";
+  const previousBugs = [...state.bugs];
+  const previousSelected = state.selectedId;
 
-  target.innerHTML = `
-    <div class="deploy-bug-info">
-      <div class="deploy-bug-title">${escapeHTML(bug.title)}</div>
-      <div class="deploy-bug-meta">
-        <span class="bug-tag tag-severity sev-${severityClass}">${severityClass.toUpperCase()}</span>
-        <span class="bug-tag tag-bounty">${bountyText}</span>
-        <span class="bug-tag tag-hours">${bug.estimatedFixHours}h to fix</span>
-      </div>
-      <div class="deploy-bug-link">${urlHTML}</div>
-    </div>
-  `;
-  button.disabled = false;
-}
-
-function selectBug(id) {
-  selectedBugID = id;
-  renderBugList();
-  renderDeployTarget();
-}
-
-async function deployFix() {
-  if (!selectedBugID) return;
-  const bug = allBugs.find((item) => item.id === selectedBugID);
-  if (!bug) return;
+  state.bugs = state.bugs.filter((item) => item.id !== bug.id);
+  state.selectedId = state.bugs.length ? state.bugs[0].id : null;
+  showToast(`Deploying fix for #${bug.id}...`);
+  renderAll();
 
   try {
-    await apiFix(selectedBugID);
+    await api.fix(bug.id);
+    showToast(`Bug #${bug.id} fixed.`);
+    await loadBugs(false);
   } catch (error) {
-    showFlash(`Fix failed: ${String(error.message || error)}`, "error");
-    return;
+    state.bugs = previousBugs;
+    state.selectedId = previousSelected;
+    state.fetchError = `Fix failed: ${error.message}`;
+    showToast(`Fix failed for #${bug.id}.`);
+    renderAll();
   }
-
-  allBugs = allBugs.filter((item) => item.id !== selectedBugID);
-  selectedBugID = null;
-  fixedCount += 1;
-
-  showFlash(`Bug fixed: ${bug.title}`, "success");
-  renderStats();
-  renderBugList();
-  renderDeployTarget();
 }
 
-async function runSchedule() {
-  const hours = Math.max(1, Number(document.getElementById("budget-input").value || 8));
-  const list = document.getElementById("schedule-list");
-  const summary = document.getElementById("schedule-summary");
+async function runSchedule(hours) {
+  state.schedule.loading = true;
+  state.schedule.error = "";
+  state.schedule.hours = hours;
+  state.schedule.bugs = [];
+  renderSchedule();
 
-  let scheduledBugs = [];
   try {
-    scheduledBugs = await apiSchedule(hours);
+    const response = await api.schedule(hours);
+    state.schedule.bugs = normalizeBugList(response);
   } catch (error) {
-    showFlash(`Schedule API failed, using local fallback: ${String(error.message || error)}`, "error");
-    scheduledBugs = localSchedule(allBugs, hours).bugs;
+    state.schedule.error = `Schedule failed: ${error.message}`;
+  } finally {
+    state.schedule.loading = false;
+    renderSchedule();
   }
+}
 
-  list.innerHTML = "";
-  if (scheduledBugs.length === 0) {
-    list.innerHTML = "<p class='schedule-empty'>No bugs fit in the selected budget</p>";
-    summary.classList.add("hidden");
-    return;
+async function runCompare(hours) {
+  state.compare.loading = true;
+  state.compare.error = "";
+  state.compare.data = null;
+  renderCompare();
+
+  try {
+    const response = await api.compare(hours);
+    state.compare.data = response;
+  } catch (error) {
+    state.compare.error = `Compare failed: ${error.message}`;
+  } finally {
+    state.compare.loading = false;
+    renderCompare();
   }
+}
 
-  let usedHours = 0;
-  let totalPriority = 0;
-  scheduledBugs.forEach((bug, index) => {
-    usedHours += bug.estimatedFixHours;
-    totalPriority += bug.priority;
-    const item = document.createElement("div");
-    item.className = "schedule-item";
-    item.innerHTML = `
-      <span class="sched-num">${index + 1}.</span>
-      <span class="sched-title">${escapeHTML(bug.title)}</span>
-      <span class="sched-cost">${bug.estimatedFixHours}h</span>
-    `;
-    list.appendChild(item);
+// --------------------------
+// UI helpers
+// --------------------------
+let toastTimer = null;
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.remove("hidden");
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+  }
+  toastTimer = setTimeout(() => {
+    elements.toast.classList.add("hidden");
+  }, 2200);
+}
+
+// --------------------------
+// Events
+// --------------------------
+function bindEvents() {
+  elements.btnRefresh.addEventListener("click", () => {
+    loadBugs(true);
   });
 
-  summary.classList.remove("hidden");
-  summary.innerHTML = `
-    <div class="summary-row"><span>Bugs to fix:</span><span>${scheduledBugs.length}</span></div>
-    <div class="summary-row"><span>Hours used:</span><span>${usedHours}h / ${hours}h</span></div>
-    <div class="summary-row"><span>Total priority:</span><span>${totalPriority.toFixed(1)}</span></div>
-  `;
+  elements.sortSelect.addEventListener("change", () => {
+    state.sortMode = elements.sortSelect.value;
+    renderQueue();
+  });
+
+  elements.limitSelect.addEventListener("change", () => {
+    state.limit = toInt(elements.limitSelect.value, 20);
+    renderQueue();
+  });
+
+  elements.queueList.addEventListener("click", (event) => {
+    const target = event.target.closest("button.queue-item");
+    if (!target) return;
+    const id = toInt(target.dataset.id, 0);
+    if (id > 0) {
+      selectBugById(id);
+    }
+  });
+
+  elements.detailFix.addEventListener("click", () => {
+    deployFixSelected();
+  });
+
+  elements.scheduleForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const hours = clamp(toInt(elements.hoursInput.value, 8), 1, 80);
+    elements.hoursInput.value = String(hours);
+    runSchedule(hours);
+  });
+
+  elements.compareButton.addEventListener("click", () => {
+    const hours = clamp(toInt(elements.hoursInput.value, 8), 1, 80);
+    runCompare(hours);
+  });
 }
 
-async function runComparison() {
-  const resultBox = document.getElementById("compare-result");
-  const hours = Math.max(1, Number(document.getElementById("budget-input").value || 8));
-
-  let greedyPriority = 0;
-  let optimalPriority = 0;
-  try {
-    const apiResult = await apiCompare(hours);
-    greedyPriority = toNumber(apiResult?.greedy?.totalPriority, 0);
-    optimalPriority = toNumber(apiResult?.optimal?.totalPriority, 0);
-  } catch (error) {
-    showFlash(`Compare API failed, using local fallback: ${String(error.message || error)}`, "error");
-    const greedy = localSchedule(allBugs, hours);
-    const optimal = localBruteForce(allBugs, hours);
-    greedyPriority = greedy.totalPriority;
-    optimalPriority = optimal.totalPriority;
-  }
-
-  const maxPriority = Math.max(1, greedyPriority, optimalPriority);
-  const greedyPct = (greedyPriority / maxPriority) * 100;
-  const optimalPct = (optimalPriority / maxPriority) * 100;
-  const efficiency = optimalPriority > 0 ? ((greedyPriority / optimalPriority) * 100).toFixed(1) : "100.0";
-
-  resultBox.classList.remove("hidden");
-  resultBox.innerHTML = `
-    <div class="compare-row">
-      <span class="compare-label">Greedy</span>
-      <span class="compare-value compare-greedy">${greedyPriority.toFixed(1)}</span>
-    </div>
-    <div class="compare-row">
-      <span class="compare-label">Optimal (brute-force)</span>
-      <span class="compare-value compare-optimal">${optimalPriority.toFixed(1)}</span>
-    </div>
-    <div class="compare-bar">
-      <div class="compare-bar-optimal" style="width:${optimalPct}%"></div>
-      <div class="compare-bar-greedy" style="width:${greedyPct}%"></div>
-    </div>
-    <div class="compare-verdict">Greedy achieves ${efficiency}% of optimal</div>
-  `;
-}
-
-function showFlash(message, type = "success") {
-  const flash = document.getElementById("flash");
-  flash.textContent = message;
-  flash.className = `flash ${type}`;
-  setTimeout(() => flash.classList.add("hidden"), 2600);
-}
-
-function escapeHTML(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
+// --------------------------
+// Bootstrap
+// --------------------------
 async function init() {
-  try {
-    await fetchBugs(true);
-  } catch (error) {
-    showFlash(`Could not load live bugs: ${String(error.message || error)}`, "error");
-    allBugs = [];
-  }
-
-  renderStats();
-  renderBugList();
-  renderDeployTarget();
-
-  document.getElementById("btn-deploy").addEventListener("click", deployFix);
-  document.getElementById("btn-schedule").addEventListener("click", runSchedule);
-  document.getElementById("btn-compare").addEventListener("click", runComparison);
-  document.getElementById("top-k-select").addEventListener("change", renderBugList);
+  bindEvents();
+  renderAll();
+  await loadBugs(true);
 }
 
 document.addEventListener("DOMContentLoaded", init);

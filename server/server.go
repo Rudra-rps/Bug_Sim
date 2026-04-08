@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"bug-bounty-engine/engine"
+	"bug-bounty-engine/model"
 	"bug-bounty-engine/scheduler"
 )
 
@@ -30,6 +31,7 @@ func (s *HTTPServer) Handler() http.Handler {
 	mux.HandleFunc("GET /api/bugs", s.handleGetBugs)
 	mux.HandleFunc("GET /api/top", s.handleGetTop)
 	mux.HandleFunc("POST /api/fix/{id}", s.handleFixBug)
+	mux.HandleFunc("GET /api/explain/{id}", s.handleExplainBug)
 	mux.HandleFunc("GET /api/schedule", s.handleSchedule)
 	mux.HandleFunc("GET /api/compare", s.handleCompare)
 
@@ -122,6 +124,30 @@ func (s *HTTPServer) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result.Bugs)
 }
 
+func (s *HTTPServer) handleExplainBug(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, errors.New("invalid bug id"))
+		return
+	}
+
+	bug, ok, err := s.engine.GetByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("bug not found"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bug":     bug,
+		"summary": explainSummary(bug),
+		"detail":  explainDetail(bug),
+	})
+}
+
 func (s *HTTPServer) handleCompare(w http.ResponseWriter, r *http.Request) {
 	hours := parseIntOrDefault(r.URL.Query().Get("hours"), 8)
 	if hours < 0 {
@@ -182,4 +208,33 @@ func parseIntOrDefault(raw string, defaultValue int) int {
 func parseRefresh(r *http.Request) bool {
 	value := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("refresh")))
 	return value == "1" || value == "true" || value == "yes"
+}
+
+func explainSummary(bug model.Bug) string {
+	return "This bug is prioritized because its combined severity, bounty, reproducibility, and age produce a high weighted score."
+}
+
+func explainDetail(bug model.Bug) string {
+	components := []string{
+		"Severity contributes " + scoreComponentLabel(bug.PriorityBreakdown.Severity),
+		"Bounty contributes " + scoreComponentLabel(bug.PriorityBreakdown.BountyValue),
+		"Reproductions contribute " + scoreComponentLabel(bug.PriorityBreakdown.Reproductions),
+		"Age contributes " + scoreComponentLabel(bug.PriorityBreakdown.Age),
+	}
+	return strings.Join(components, ". ") + "."
+}
+
+func scoreComponentLabel(value float64) string {
+	switch {
+	case value >= 80:
+		return "very strongly"
+	case value >= 60:
+		return "strongly"
+	case value >= 40:
+		return "moderately"
+	case value >= 20:
+		return "lightly"
+	default:
+		return "minimally"
+	}
 }

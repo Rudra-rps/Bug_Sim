@@ -2,7 +2,7 @@
 
 A hackathon project that turns bug triage into a strategy game.
 
-The Bug Bounty Priority Engine fetches real bug reports from OWASP BLT, scores them using a weighted formula, stores them in a max-heap for fast priority access, and recommends which bugs to fix first within a limited developer-hour budget.
+The Bug Bounty Priority Engine fetches real bug reports from OWASP BLT, scores them using a weighted formula, stores them in a max heap for fast priority access, and recommends which bugs to fix first within a limited developer hour budget.
 
 Think of it like Clash Royale for open source maintenance: bugs are invading troops, and this engine tells you which card to play next.
 
@@ -20,11 +20,11 @@ This project helps by answering four practical questions:
 - Real issue ingestion from OWASP BLT
 - GitHub issues fallback for demo reliability
 - Weighted bug scoring with normalized inputs
-- Max-heap for fast top-priority retrieval
+- Max heap for fast top priority retrieval
 - Fix simulation with heap rebalance
-- Greedy scheduler for hour-constrained planning
-- Brute-force comparison for algorithmic validation
-- Royale-inspired dashboard UI
+- Greedy scheduler for hour constrained planning
+- Brute force comparison for algorithmic validation
+- Royale inspired dashboard UI
 - AI explanation layer for score reasoning and battle-plan narration
 
 ## Tech Stack
