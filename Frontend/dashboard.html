@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="BugOff — Bug Bounty Priority Engine. Smart bug triage for open source maintainers.">
+  <title>BugOff — Bug Bounty Priority Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── HEADER ── -->
+  <header id="header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-bug">BUG</span><span class="logo-off">OFF</span>
+      </div>
+      <span class="logo-tag">PRIORITY ENGINE</span>
+    </div>
+    <div class="header-stats">
+      <div class="stat-chip">
+        <span class="stat-label">BUGS</span>
+        <span class="stat-value" id="stat-total">0</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label">CRITICAL</span>
+        <span class="stat-value stat-critical" id="stat-critical">0</span>
+      </div>
+      <div class="stat-chip">
+        <span class="stat-label">INTEGRITY</span>
+        <span class="stat-value stat-integrity" id="stat-integrity">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── MAIN LAYOUT ── -->
+  <main id="app">
+
+    <!-- LEFT: BUG QUEUE -->
+    <section id="queue-section">
+      <div class="section-header">
+        <h2>Priority Queue</h2>
+        <div class="section-controls">
+          <label class="top-k-label">
+            Show top
+            <select id="top-k-select">
+              <option value="5" selected>5</option>
+              <option value="10">10</option>
+              <option value="15">All</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div id="bug-list">
+        <!-- Bug cards rendered by JS -->
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL -->
+    <aside id="side-panel">
+
+      <!-- DEPLOY SECTION -->
+      <div class="panel-card" id="deploy-card">
+        <h3>Next Deploy</h3>
+        <div id="deploy-target">
+          <p class="deploy-empty">Select a bug to deploy</p>
+        </div>
+        <button id="btn-deploy" class="btn btn-primary" disabled>
+          <span class="btn-icon">▶</span> DEPLOY FIX
+        </button>
+      </div>
+
+      <!-- SCHEDULE SECTION -->
+      <div class="panel-card" id="schedule-card">
+        <h3>
+          Battle Plan
+          <span class="badge">GREEDY</span>
+        </h3>
+        <div class="schedule-controls">
+          <label>
+            Budget:
+            <input type="number" id="budget-input" value="8" min="1" max="100" class="input-hours"> hrs
+          </label>
+          <button id="btn-schedule" class="btn btn-secondary">PLAN</button>
+        </div>
+        <div id="schedule-list">
+          <p class="schedule-empty">Set a budget and click PLAN</p>
+        </div>
+        <div id="schedule-summary" class="hidden"></div>
+      </div>
+
+      <!-- COMPARISON SECTION -->
+      <div class="panel-card" id="compare-card">
+        <h3>Greedy vs Optimal</h3>
+        <button id="btn-compare" class="btn btn-outline">RUN COMPARISON</button>
+        <div id="compare-result" class="hidden"></div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- FLASH NOTIFICATION -->
+  <div id="flash" class="flash hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
