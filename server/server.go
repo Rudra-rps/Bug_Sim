@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,20 +9,31 @@ import (
 	"strconv"
 	"strings"
 
+	"bug-bounty-engine/ai"
 	"bug-bounty-engine/engine"
 	"bug-bounty-engine/model"
 	"bug-bounty-engine/scheduler"
 )
 
+type Explainer interface {
+	Explain(ctx context.Context, bug model.Bug) ai.ExplainResult
+}
+
 type HTTPServer struct {
 	engine      *engine.Engine
 	frontendDir string
+	explainer   Explainer
 }
 
-func New(engine *engine.Engine, frontendDir string) *HTTPServer {
+func New(engine *engine.Engine, frontendDir string, explainer Explainer) *HTTPServer {
+	if explainer == nil {
+		explainer = ai.NewGroqMultiAgentFromEnv(nil)
+	}
+
 	return &HTTPServer{
 		engine:      engine,
 		frontendDir: frontendDir,
+		explainer:   explainer,
 	}
 }
 
@@ -141,10 +153,21 @@ func (s *HTTPServer) handleExplainBug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	explanation := s.explainer.Explain(r.Context(), bug)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"bug":     bug,
-		"summary": explainSummary(bug),
-		"detail":  explainDetail(bug),
+		"summary": explanation.Summary,
+		"detail":  explanation.Detail,
+		"agents": map[string]any{
+			"security":     explanation.Security,
+			"optimization": explanation.Optimization,
+		},
+		"ai": map[string]any{
+			"provider": explanation.Provider,
+			"model":    explanation.Model,
+			"fallback": explanation.Fallback,
+			"reason":   explanation.Reason,
+		},
 	})
 }
 
@@ -208,33 +231,4 @@ func parseIntOrDefault(raw string, defaultValue int) int {
 func parseRefresh(r *http.Request) bool {
 	value := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("refresh")))
 	return value == "1" || value == "true" || value == "yes"
-}
-
-func explainSummary(bug model.Bug) string {
-	return "This bug is prioritized because its combined severity, bounty, reproducibility, and age produce a high weighted score."
-}
-
-func explainDetail(bug model.Bug) string {
-	components := []string{
-		"Severity contributes " + scoreComponentLabel(bug.PriorityBreakdown.Severity),
-		"Bounty contributes " + scoreComponentLabel(bug.PriorityBreakdown.BountyValue),
-		"Reproductions contribute " + scoreComponentLabel(bug.PriorityBreakdown.Reproductions),
-		"Age contributes " + scoreComponentLabel(bug.PriorityBreakdown.Age),
-	}
-	return strings.Join(components, ". ") + "."
-}
-
-func scoreComponentLabel(value float64) string {
-	switch {
-	case value >= 80:
-		return "very strongly"
-	case value >= 60:
-		return "strongly"
-	case value >= 40:
-		return "moderately"
-	case value >= 20:
-		return "lightly"
-	default:
-		return "minimally"
-	}
 }

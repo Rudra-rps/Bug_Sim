@@ -476,6 +476,45 @@ input[type="number"]:focus,
 
 .explain-copy.detail {
   color: var(--text-soft);
+  white-space: pre-line;
+}
+
+.agent-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(9, 18, 31, 0.8);
+  padding: 8px 10px;
+}
+
+.agent-security {
+  border-left: 3px solid rgba(239, 68, 68, 0.8);
+}
+
+.agent-optimization {
+  border-left: 3px solid rgba(32, 211, 182, 0.8);
+}
+
+.agent-title {
+  margin: 0 0 6px;
+  font-size: 0.73rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.agent-copy {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.79rem;
+  line-height: 1.42;
+  white-space: pre-line;
 }
 
 .scheduler-form {
@@ -681,6 +720,10 @@ input[type="number"]:focus,
   }
 
   .compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-grid {
     grid-template-columns: 1fr;
   }
 }

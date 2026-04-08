@@ -109,8 +109,11 @@ Return the recommended bugs to fix within the given hour budget.
 ### `GET /api/compare`
 Compare greedy scheduling against brute-force optimal selection.
 
-### Optional: `GET /api/explain?id=123`
-Return a human-readable explanation of why a bug ranks highly.
+### `GET /api/explain/{id}`
+Return a human-readable explanation of why a bug ranks highly, including:
+- backward-compatible `summary` and `detail`
+- `agents.security` and `agents.optimization` persona outputs
+- `ai` metadata (`provider`, `model`, `fallback`, `reason`)
 
 ## Frontend
 The dashboard is designed around a Clash Royale-inspired presentation:
@@ -139,6 +142,21 @@ It can be used to:
 - generate a short judge-facing insight
 
 If AI is unavailable, the app should fall back to deterministic template-based explanations so the demo remains stable.
+
+### Multi-Agent Setup (Groq)
+Set these environment variables to enable live dual-agent explainability:
+
+```bash
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.1-8b-instant
+# Optional
+GROQ_API_URL=https://api.groq.com/openai/v1/chat/completions
+GROQ_TIMEOUT_SEC=12
+GROQ_MAX_TOKENS=220
+GROQ_TEMPERATURE=0.2
+```
+
+When `GROQ_API_KEY` is missing or Groq fails, the API automatically returns deterministic security and optimization explanations.
 
 ## Local Run Plan
 Expected developer flow:

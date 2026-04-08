@@ -17,6 +17,12 @@ const state = {
     error: "",
     summary: "",
     detail: "",
+    security: "",
+    optimization: "",
+    provider: "",
+    model: "",
+    fallback: false,
+    reason: "",
     bugId: null,
     seq: 0,
   },
@@ -67,6 +73,8 @@ const elements = {
   explainState: document.getElementById("explainState"),
   explainSummary: document.getElementById("explainSummary"),
   explainDetail: document.getElementById("explainDetail"),
+  explainSecurity: document.getElementById("explainSecurity"),
+  explainOptimization: document.getElementById("explainOptimization"),
 
   scheduleForm: document.getElementById("scheduleForm"),
   hoursInput: document.getElementById("hoursInput"),
@@ -407,6 +415,8 @@ function renderExplain() {
     elements.explainState.textContent = "No explanation loaded.";
     elements.explainSummary.textContent = "";
     elements.explainDetail.textContent = "";
+    elements.explainSecurity.textContent = "";
+    elements.explainOptimization.textContent = "";
     return;
   }
 
@@ -414,6 +424,8 @@ function renderExplain() {
     elements.explainState.textContent = "Loading explanation...";
     elements.explainSummary.textContent = "";
     elements.explainDetail.textContent = "";
+    elements.explainSecurity.textContent = "";
+    elements.explainOptimization.textContent = "";
     return;
   }
 
@@ -421,12 +433,23 @@ function renderExplain() {
     elements.explainState.textContent = state.explain.error;
     elements.explainSummary.textContent = "";
     elements.explainDetail.textContent = "";
+    elements.explainSecurity.textContent = "";
+    elements.explainOptimization.textContent = "";
     return;
   }
 
-  elements.explainState.textContent = "";
+  if (state.explain.fallback) {
+    const fallbackReason = state.explain.reason ? ` (${state.explain.reason})` : "";
+    elements.explainState.textContent = `Fallback explanation${fallbackReason}`;
+  } else if (state.explain.provider || state.explain.model) {
+    elements.explainState.textContent = `AI: ${state.explain.provider || "provider"} | ${state.explain.model || "model"}`;
+  } else {
+    elements.explainState.textContent = "";
+  }
   elements.explainSummary.textContent = state.explain.summary || "";
   elements.explainDetail.textContent = state.explain.detail || "";
+  elements.explainSecurity.textContent = state.explain.security || "Security agent output unavailable.";
+  elements.explainOptimization.textContent = state.explain.optimization || "Optimization agent output unavailable.";
 }
 
 function renderSchedule() {
@@ -570,6 +593,12 @@ async function loadExplain(bugId) {
   state.explain.error = "";
   state.explain.summary = "";
   state.explain.detail = "";
+  state.explain.security = "";
+  state.explain.optimization = "";
+  state.explain.provider = "";
+  state.explain.model = "";
+  state.explain.fallback = false;
+  state.explain.reason = "";
   state.explain.bugId = bugId;
   renderDetail();
 
@@ -578,6 +607,12 @@ async function loadExplain(bugId) {
     if (seq !== state.explain.seq) return;
     state.explain.summary = String(response?.summary || "");
     state.explain.detail = String(response?.detail || "");
+    state.explain.security = String(response?.agents?.security?.analysis || "");
+    state.explain.optimization = String(response?.agents?.optimization?.analysis || "");
+    state.explain.provider = String(response?.ai?.provider || "");
+    state.explain.model = String(response?.ai?.model || "");
+    state.explain.fallback = Boolean(response?.ai?.fallback);
+    state.explain.reason = String(response?.ai?.reason || "");
   } catch (error) {
     if (seq !== state.explain.seq) return;
     state.explain.error = `Explain failed: ${error.message}`;
